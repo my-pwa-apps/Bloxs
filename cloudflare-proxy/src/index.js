@@ -22,7 +22,7 @@ let schemaCacheExpiry = 0;
 const KNOWN_SORTABLE_FIELDS = {
   'ServiceTickets': ['ServiceTicketId', 'Reference', 'ReportingDate', 'ClosingDate', 'Priority', 'RealEstateObjectName', 'TenantName', 'SupplierName'],
   'ServiceTicketStates': ['ServiceTicketStateId', 'Name'],
-  'Units': ['UnitId', 'DisplayName', 'Reference', 'CategoryName', 'OccupationPercentage', 'Owner'],
+  'Units': ['UnitId', 'DisplayName', 'Reference', 'CategoryName', 'OccupationPercentage', 'Owner', 'OwnerId'],
   'SalesContracts': ['SalesContractId', 'Reference', 'StartDate', 'EndDate', 'RelationName', 'OwnerName'],
   'SalesContractRealestateObjects': ['SalesContractId', 'RealEstateObjectId', 'SortingIndex'],
   'FinancingContracts': ['FinancingContractId', 'Reference', 'StartDate', 'EndDate', 'PrincipalAmount', 'RealEstateObjectId'],
@@ -222,7 +222,8 @@ async function handleMetadataSummary(env) {
       Units: {
         description: 'Rental units (apartments, offices, retail spaces)',
         sortableFields: KNOWN_SORTABLE_FIELDS['Units'],
-        filterExamples: ["OccupationPercentage lt 1", "contains(CategoryName,'Winkel')"]
+        filterExamples: ["OccupationPercentage lt 1", "OwnerId eq 515", "contains(CategoryName,'Winkel')"],
+        note: 'Use OwnerId to filter by owner. RealEstateObjects base table does NOT have OwnerId - use Units instead.'
       },
       SalesContracts: {
         description: 'Rent contracts with tenants (contains RelationId/RelationName = tenant)',
@@ -273,8 +274,9 @@ async function handleMetadataSummary(env) {
       PropertyValuationValues: {
         description: 'WOZ values and other property valuations',
         sortableFields: KNOWN_SORTABLE_FIELDS['PropertyValuationValues'],
-        filterExamples: ["contains(PropertyValuationTypeName,'WOZ')"],
-        joinInfo: 'RealEstateObjectId links to Units.UnitId'
+        filterExamples: ["ValuationYear eq 2025", "contains(RealEstateObjectName,'straat')", "RealEstateObjectId eq 123"],
+        joinInfo: 'RealEstateObjectId links to Units.UnitId',
+        note: 'For WOZ by owner: first query Units with OwnerId eq X to get UnitIds, then filter PropertyValuationValues by those RealEstateObjectIds.'
       },
       ServiceTicketStates: {
         description: 'Valid maintenance ticket states (use this to discover the exact names/ids for filtering ServiceTickets)',
