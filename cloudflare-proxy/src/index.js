@@ -261,7 +261,14 @@ async function handleMetadataSummary(env) {
         description: 'Chart of accounts (grootboekrekeningen)',
         sortableFields: KNOWN_SORTABLE_FIELDS['LedgerAccounts'],
         filterExamples: ["contains(Name,'hypothe')", "contains(Name,'lening')"],
-        importantCodes: { '5001': 'Hypotheekrente', '4790': 'Rente lening', '1300': 'Debiteuren', '1600': 'Crediteuren' }
+        importantCodes: { 
+          '0800': 'Hypotheek (schuld/balansrekening)', 
+          '5001': 'Hypotheekrente (kosten/resultaat)', 
+          '4790': 'Rente lening', 
+          '1300': 'Debiteuren', 
+          '1600': 'Crediteuren' 
+        },
+        note: 'For mortgage questions: check BOTH 0800 (debt balance) AND 5001 (interest costs)!'
       },
       Meters: {
         description: 'Utility meters (electricity, gas, water)',
