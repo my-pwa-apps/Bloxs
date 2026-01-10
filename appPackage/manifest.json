@@ -15,7 +15,7 @@
   },
   "name": {
     "short": "Bloxs",
-    "full": "Bloxs Real Estate Management Agent"
+    "full": "Bloxs"
   },
   "description": {
     "short": "Connect to Bloxs real estate software in M365 Copilot",
@@ -38,6 +38,6 @@
     "bloxsproxy.garfieldapp.workers.dev",
     "stadsgezicht.bloxs.io",
     "bloxs.io",
-    "www.bloxs.com"
+    "bloxs.com"
   ]
 }
