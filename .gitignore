@@ -1,0 +1,38 @@
+# Bloxs Copilot Agent
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+appPackage/build/
+
+# Environment files with secrets
+env/.env.*.user
+.env.local
+.localConfigs
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Teams Toolkit
+.fx/
+.deployment/

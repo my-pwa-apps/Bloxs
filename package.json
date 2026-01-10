@@ -1,0 +1,32 @@
+{
+  "name": "bloxs-copilot-agent",
+  "version": "1.0.0",
+  "description": "Microsoft 365 Copilot agent for Bloxs real estate software",
+  "author": "Bloxs Software",
+  "license": "MIT",
+  "scripts": {
+    "dev:teamsfx": "env-cmd --silent -f .localConfigs npm run dev",
+    "dev": "func start --typescript --language-worker=\"--inspect=9229\" --port \"7071\" --cors \"*\"",
+    "build": "tsc --build",
+    "watch": "tsc --build --watch",
+    "prestart": "npm run build",
+    "start": "npx func start",
+    "test": "echo \"No tests configured\""
+  },
+  "keywords": [
+    "microsoft365",
+    "copilot",
+    "agent",
+    "bloxs",
+    "real-estate",
+    "property-management"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "env-cmd": "^10.1.0",
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,0 +1,11 @@
+name = "bloxs-proxy"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+BLOXS_BASE_URL = "https://stadsgezicht.bloxs.io"
+
+# Secrets (set via `wrangler secret put`):
+# BLOXS_API_KEY - your Bloxs API key
+# BLOXS_API_SECRET - your Bloxs API secret
+# PROXY_API_KEY - a short key you create for Copilot (under 128 chars)
