@@ -21,6 +21,7 @@ let schemaCacheExpiry = 0;
 // Known sortable fields per entity (fallback if metadata unavailable)
 const KNOWN_SORTABLE_FIELDS = {
   'ServiceTickets': ['ServiceTicketId', 'Reference', 'ReportingDate', 'ClosingDate', 'Priority', 'RealEstateObjectName', 'TenantName', 'SupplierName'],
+  'ServiceTicketStates': ['ServiceTicketStateId', 'Name'],
   'Units': ['UnitId', 'DisplayName', 'Reference', 'CategoryName', 'OccupationPercentage', 'Owner'],
   'SalesContracts': ['SalesContractId', 'Reference', 'StartDate', 'EndDate', 'RelationName', 'OwnerName'],
   'SalesContractRealestateObjects': ['SalesContractId', 'RealEstateObjectId', 'SortingIndex'],
@@ -216,11 +217,12 @@ function handleODataError(status, responseBody, entityName) {
 async function handleMetadataSummary(env) {
   const summary = {
     description: 'Available OData entities and their commonly used fields',
+    note: 'Important: many label fields (Status/State/WorkflowState/CategoryName/etc.) are tenant- and language-specific. Do not hardcode string equals filters; first discover valid values via lookup endpoints or by sampling recent records, then filter using the exact returned values.',
     entities: {
       Units: {
         description: 'Rental units (apartments, offices, retail spaces)',
         sortableFields: KNOWN_SORTABLE_FIELDS['Units'],
-        filterExamples: ["OccupationPercentage lt 1", "CategoryName eq 'Winkelruimte'"]
+        filterExamples: ["OccupationPercentage lt 1", "contains(CategoryName,'Winkel')"]
       },
       SalesContracts: {
         description: 'Rent contracts with tenants (contains RelationId/RelationName = tenant)',
@@ -254,21 +256,14 @@ async function handleMetadataSummary(env) {
       FinancialMutations: {
         description: 'General ledger transactions - THE SOURCE for mortgage/loan payments!',
         sortableFields: KNOWN_SORTABLE_FIELDS['FinancialMutations'],
-        filterExamples: ["LedgerAccountCode eq '5001'", "contains(LedgerAccountName,'hypothe')"],
-        note: 'Filter on LedgerAccountCode 5001 for mortgage interest. Contains RealEstateObjectName, RelationName (bank), Amount'
+        filterExamples: ["FinancialYear eq 2025", "contains(RealEstateObjectName,'straat')"],
+        note: 'Always use a restrictive $filter and small $top. For mortgage questions: first discover the relevant ledger account code(s) via LedgerAccounts, then filter here. Contains RealEstateObjectName, RelationName (bank), Amount.'
       },
       LedgerAccounts: {
         description: 'Chart of accounts (grootboekrekeningen)',
         sortableFields: KNOWN_SORTABLE_FIELDS['LedgerAccounts'],
         filterExamples: ["contains(Name,'hypothe')", "contains(Name,'lening')"],
-        importantCodes: { 
-          '0800': 'Hypotheek (schuld/balansrekening)', 
-          '5001': 'Hypotheekrente (kosten/resultaat)', 
-          '4790': 'Rente lening', 
-          '1300': 'Debiteuren', 
-          '1600': 'Crediteuren' 
-        },
-        note: 'For mortgage questions: check BOTH 0800 (debt balance) AND 5001 (interest costs)!'
+        note: "Do not hardcode ledger codes. First discover the right Code(s) by querying this entity (e.g. contains(Name,'hypothe') / contains(Name,'rente')), then use those Code(s) in FinancialMutations filters."
       },
       Meters: {
         description: 'Utility meters (electricity, gas, water)',
@@ -278,14 +273,20 @@ async function handleMetadataSummary(env) {
       PropertyValuationValues: {
         description: 'WOZ values and other property valuations',
         sortableFields: KNOWN_SORTABLE_FIELDS['PropertyValuationValues'],
-        filterExamples: ["PropertyValuationTypeName eq 'WOZ-Waarde'"],
+        filterExamples: ["contains(PropertyValuationTypeName,'WOZ')"],
         joinInfo: 'RealEstateObjectId links to Units.UnitId'
+      },
+      ServiceTicketStates: {
+        description: 'Valid maintenance ticket states (use this to discover the exact names/ids for filtering ServiceTickets)',
+        sortableFields: KNOWN_SORTABLE_FIELDS['ServiceTicketStates'],
+        filterExamples: ["contains(Name,'act')", "contains(Name,'open')", "contains(Name,'afger')"],
+        note: 'State names are tenant- and language-specific. Query here first, then filter ServiceTickets by ServiceTicketStateName or state id fields if available.'
       },
       ServiceTickets: {
         description: 'Maintenance service tickets (NO JOIN NEEDED - contains all names)',
         sortableFields: KNOWN_SORTABLE_FIELDS['ServiceTickets'],
-        filterExamples: ["ServiceTicketStateName ne 'Afgerond'", "Priority eq 'High'"],
-        note: 'Already includes RealEstateObjectName, TenantName, SupplierName'
+        filterExamples: ["ClosingDate eq null", "ReportingDate ge 2025-01-01", "contains(ServiceTicketStateName,'Act')"],
+        note: "Already includes RealEstateObjectName, TenantName, SupplierName. For 'open/active' tickets: first query ServiceTicketStates to find valid state names, then filter by ServiceTicketStateName."
       },
       Notes: {
         description: 'Notes attached to entities',
@@ -306,22 +307,24 @@ async function handleMetadataSummary(env) {
       Owners: {
         description: 'Property owners with contact info and company details',
         sortableFields: KNOWN_SORTABLE_FIELDS['Owners'],
-        filterExamples: ["State eq 'Active'", "contains(DisplayName, 'BV')"]
+        filterExamples: ["contains(State,'Act')", "contains(DisplayName, 'BV')"]
       },
       SalesInvoices: {
         description: 'Sales invoices to tenants',
         sortableFields: KNOWN_SORTABLE_FIELDS['SalesInvoices'],
-        filterExamples: ["WorkflowState eq 'Final'", "FinancialYear eq 2025"]
+        filterExamples: ["InvoiceDate ge 2025-01-01", "FinancialYear eq 2025"],
+        note: "WorkflowState values are tenant- and language-specific. To filter by state, first sample recent invoices ($top=10, $select=SalesInvoiceId,WorkflowState,InvoiceDate) to discover valid values, then filter using the exact returned value(s)."
       },
       OwnerSettlements: {
         description: 'Owner settlements/statements (afrekeningen)',
         sortableFields: KNOWN_SORTABLE_FIELDS['OwnerSettlements'],
-        filterExamples: ["WorkflowState eq 'Final'"]
+        filterExamples: ["PeriodStart ge 2025-01-01", "PeriodEnd le 2025-12-31"]
       },
       Tasks: {
         description: 'System tasks and reminders',
         sortableFields: KNOWN_SORTABLE_FIELDS['Tasks'],
-        filterExamples: ["Status eq 'Open'", "Status ne 'Completed'"]
+        filterExamples: ["Deadline le 2026-06-01", "ShowFromDate le 2026-01-31"],
+        note: "Status values can vary by tenant/language. If you need status-based filtering, first sample recent tasks ($top=10, $select=TaskId,Status,Deadline) to discover valid values."
       },
       Addresses: {
         description: 'Address records with coordinates',
@@ -337,7 +340,7 @@ async function handleMetadataSummary(env) {
       IndexationMethods: {
         description: 'Rent indexation methods (CPI, fixed, etc)',
         sortableFields: KNOWN_SORTABLE_FIELDS['IndexationMethods'],
-        filterExamples: ["Type eq 'MonthlyIndex'"]
+        filterExamples: ["contains(Name,'CPI')"]
       },
       CommercialOverview: {
         description: 'Commercial summary per property - NO JOIN NEEDED! Contains tenant, owner, rent, contract dates',
@@ -351,8 +354,9 @@ async function handleMetadataSummary(env) {
       },
       PurchaseInvoices: {
         description: 'Purchase invoices from suppliers',
-        filterExamples: ["WorkflowState eq 'Final'", "FinancialYear eq 2025"],
-        joinInfo: 'RelationId → Relations (supplier), ServiceTicketId → ServiceTickets, PurchaseContractId → PurchaseContracts'
+        filterExamples: ["InvoiceDate ge 2025-01-01", "FinancialYear eq 2025"],
+        joinInfo: 'RelationId → Relations (supplier), ServiceTicketId → ServiceTickets, PurchaseContractId → PurchaseContracts',
+        note: "WorkflowState values are tenant- and language-specific. To filter by state, first sample recent invoices ($top=10, $select=PurchaseInvoiceId,WorkflowState,InvoiceDate) to discover valid values, then filter using the exact returned value(s)."
       },
       PurchaseInvoiceLines: {
         description: 'Individual purchase invoice lines',
@@ -379,12 +383,6 @@ async function handleMetadataSummary(env) {
         description: 'Base table for all relation types (persons, organisations, suppliers, owners)',
         sortableFields: KNOWN_SORTABLE_FIELDS['Relations'],
         note: 'Use specific tables like Persons, Owners for more details'
-      },
-      Addresses: {
-        description: 'Addresses linked to entities via EntityLinkType',
-        sortableFields: KNOWN_SORTABLE_FIELDS['Addresses'],
-        filterExamples: ["EntityLinkType eq 4", "City eq 'Rotterdam'"],
-        joinInfo: 'EntityId + EntityLinkType links to Person(4), Organisation(3), Unit(13), etc.'
       },
       SalesContractLines: {
         description: 'Rent components per contract (bare rent, service costs, etc)',
@@ -445,7 +443,7 @@ async function handleMetadataSummary(env) {
       // === FINANCIALS ===
       'Mutation to LedgerAccount': 'FinancialMutations.LedgerAccountId → LedgerAccounts.LedgerAccountId',
       'Mutation to Relation': 'FinancialMutations.RelationId → Relations.RelationId (e.g., bank name)',
-      'Mortgage Payments': 'FinancialMutations (filter LedgerAccountCode=5001) → shows bank, property, amount'
+      'Mortgage Payments': 'FinancialMutations (filter using the mortgage-interest ledger Code discovered via LedgerAccounts) → shows bank, property, amount'
     },
     
     entityLinkTypes: {
