@@ -248,11 +248,11 @@ async function handleMetadataSummary(env) {
         filterExamples: ["OccupationPercentage lt 1"]
       },
       FinancingContracts: {
-        description: 'Mortgages and loans on properties (hypotheken/leningen)',
+        description: 'Mortgages and loans on properties (hypotheken/leningen) - VAAK LEEG!',
         sortableFields: KNOWN_SORTABLE_FIELDS['FinancingContracts'],
         filterExamples: ["IsEnded eq false"],
         joinInfo: 'RealEstateObjectId links to Units.UnitId',
-        note: 'May be empty - mortgage data is often in FinancialMutations instead!'
+        note: 'WAARSCHUWING: Deze tabel is meestal leeg! Hypotheekdata staat bijna altijd in FinancialMutations. Workflow: 1) Query LedgerAccounts met contains(Name,\"hypothe\") om codes te vinden, 2) Query FinancialMutations met die LedgerAccountCode.'
       },
       FinancialMutations: {
         description: 'General ledger transactions - THE SOURCE for mortgage/loan payments!',
