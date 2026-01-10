@@ -20,12 +20,27 @@ let schemaCacheExpiry = 0;
 
 // Known sortable fields per entity (fallback if metadata unavailable)
 const KNOWN_SORTABLE_FIELDS = {
-  'ServiceTickets': ['ServiceTicketId', 'Reference', 'ReportingDate', 'ClosingDate', 'Priority', 'RealEstateObjectName'],
+  'ServiceTickets': ['ServiceTicketId', 'Reference', 'ReportingDate', 'ClosingDate', 'Priority', 'RealEstateObjectName', 'TenantName', 'SupplierName'],
   'Units': ['UnitId', 'DisplayName', 'Reference', 'CategoryName', 'OccupationPercentage', 'Owner'],
   'SalesContracts': ['SalesContractId', 'Reference', 'StartDate', 'EndDate', 'RelationName', 'OwnerName'],
+  'SalesContractRealestateObjects': ['SalesContractId', 'RealEstateObjectId', 'SortingIndex'],
+  'FinancingContracts': ['FinancingContractId', 'Reference', 'StartDate', 'EndDate', 'PrincipalAmount', 'RealEstateObjectId'],
+  'FinancialMutations': ['JournalPostId', 'TransactionDate', 'LedgerAccountCode', 'Amount', 'RealEstateObjectName', 'RelationName', 'FinancialYear'],
+  'LedgerAccounts': ['LedgerAccountId', 'Code', 'Name', 'LedgerAccountType'],
   'Relations': ['RelationId', 'DisplayName', 'Reference'],
-  'Persons': ['PersonId', 'DisplayName', 'FirstName', 'LastName'],
-  'Notes': ['NoteId', 'CreatedOnTimeStamp', 'LastEditedOnTimeStamp', 'EntityLinkType'],
+  'Persons': ['PersonId', 'RelationId', 'DisplayName', 'FirstName', 'LastName', 'Email'],
+  'Owners': ['OwnerId', 'RelationId', 'DisplayName', 'Reference', 'State', 'Email'],
+  'Complexes': ['ComplexId', 'RealEstateObjectId', 'Reference', 'DisplayName', 'Owner', 'OccupationPercentage'],
+  'SalesInvoices': ['SalesInvoiceId', 'Reference', 'InvoiceDate', 'DueDate', 'WorkflowState', 'TotalValueIncluding', 'OwnerName', 'RelationName'],
+  'OwnerSettlements': ['OwnerSettlementId', 'Reference', 'PeriodStart', 'PeriodEnd', 'OwnerName', 'TotalSettlementBalance'],
+  'Tasks': ['TaskId', 'Status', 'Deadline', 'ShowFromDate', 'TaskCategory'],
+  'Addresses': ['AddressId', 'Street', 'City', 'PostalCode'],
+  'Meters': ['MeterId', 'RealEstateObjectId', 'CategoryName', 'EANCode'],
+  'MeterReadings': ['MeterReadingId', 'MeterId', 'ReadingDate', 'ReadingValue'],
+  'IndexationMethods': ['IndexationMethodId', 'Name', 'Type'],
+  'CommercialOverview': ['RealEstateObjectId', 'Address', 'OwnerName', 'TenantName', 'IsOccupied'],
+  'PropertyValuationValues': ['PropertyValuationValueId', 'RealEstateObjectId', 'ValuationYear', 'Value'],
+  'Notes': ['NoteId', 'CreatedOnTimeStamp', 'LastEditedOnTimeStamp', 'EntityLinkType', 'EntityId'],
   'OpenPositionDebtors': ['SalesInvoiceId', 'InvoiceDate', 'DueDate', 'Age', 'OutstandingAmount', 'RelationName'],
   'OpenPositionCreditors': ['PurchaseInvoiceId', 'InvoiceDate', 'DueDate', 'Age', 'OutstandingAmount', 'RelationName'],
   'default': ['Id', 'Reference', 'DisplayName', 'Name']
@@ -208,29 +223,233 @@ async function handleMetadataSummary(env) {
         filterExamples: ["OccupationPercentage lt 1", "CategoryName eq 'Winkelruimte'"]
       },
       SalesContracts: {
-        description: 'Rent contracts with tenants',
+        description: 'Rent contracts with tenants (contains RelationId/RelationName = tenant)',
         sortableFields: KNOWN_SORTABLE_FIELDS['SalesContracts'],
-        filterExamples: ["IsEnded eq false", "EndDate lt 2026-06-01"]
+        filterExamples: ["IsEnded eq false", "EndDate lt 2026-06-01"],
+        joinInfo: 'Use SalesContractRealestateObjects to link to Units'
+      },
+      SalesContractRealestateObjects: {
+        description: 'JOIN TABLE linking SalesContracts to RealEstateObjects/Units',
+        sortableFields: KNOWN_SORTABLE_FIELDS['SalesContractRealestateObjects'],
+        joinInstructions: 'SalesContracts.SalesContractId → this.SalesContractId, this.RealEstateObjectId → Units.UnitId'
+      },
+      Persons: {
+        description: 'Contact details for people (tenants, contacts)',
+        sortableFields: KNOWN_SORTABLE_FIELDS['Persons'],
+        filterExamples: ["contains(DisplayName, 'naam')", "RelationId eq 123"],
+        joinInfo: 'RelationId links to SalesContracts.RelationId'
+      },
+      Complexes: {
+        description: 'Buildings/complexes containing multiple units',
+        sortableFields: KNOWN_SORTABLE_FIELDS['Complexes'],
+        filterExamples: ["OccupationPercentage lt 1"]
+      },
+      FinancingContracts: {
+        description: 'Mortgages and loans on properties (hypotheken/leningen)',
+        sortableFields: KNOWN_SORTABLE_FIELDS['FinancingContracts'],
+        filterExamples: ["IsEnded eq false"],
+        joinInfo: 'RealEstateObjectId links to Units.UnitId',
+        note: 'May be empty - mortgage data is often in FinancialMutations instead!'
+      },
+      FinancialMutations: {
+        description: 'General ledger transactions - THE SOURCE for mortgage/loan payments!',
+        sortableFields: KNOWN_SORTABLE_FIELDS['FinancialMutations'],
+        filterExamples: ["LedgerAccountCode eq '5001'", "contains(LedgerAccountName,'hypothe')"],
+        note: 'Filter on LedgerAccountCode 5001 for mortgage interest. Contains RealEstateObjectName, RelationName (bank), Amount'
+      },
+      LedgerAccounts: {
+        description: 'Chart of accounts (grootboekrekeningen)',
+        sortableFields: KNOWN_SORTABLE_FIELDS['LedgerAccounts'],
+        filterExamples: ["contains(Name,'hypothe')", "contains(Name,'lening')"],
+        importantCodes: { '5001': 'Hypotheekrente', '4790': 'Rente lening', '1300': 'Debiteuren', '1600': 'Crediteuren' }
+      },
+      Meters: {
+        description: 'Utility meters (electricity, gas, water)',
+        sortableFields: KNOWN_SORTABLE_FIELDS['Meters'],
+        joinInfo: 'RealEstateObjectId links to Units.UnitId'
+      },
+      PropertyValuationValues: {
+        description: 'WOZ values and other property valuations',
+        sortableFields: KNOWN_SORTABLE_FIELDS['PropertyValuationValues'],
+        filterExamples: ["PropertyValuationTypeName eq 'WOZ-Waarde'"],
+        joinInfo: 'RealEstateObjectId links to Units.UnitId'
       },
       ServiceTickets: {
-        description: 'Maintenance service tickets',
+        description: 'Maintenance service tickets (NO JOIN NEEDED - contains all names)',
         sortableFields: KNOWN_SORTABLE_FIELDS['ServiceTickets'],
-        filterExamples: ["ServiceTicketStateName ne 'Afgerond'", "Priority eq 'High'"]
+        filterExamples: ["ServiceTicketStateName ne 'Afgerond'", "Priority eq 'High'"],
+        note: 'Already includes RealEstateObjectName, TenantName, SupplierName'
       },
-      Relations: {
-        description: 'Tenants, contacts, suppliers',
-        sortableFields: KNOWN_SORTABLE_FIELDS['Relations'],
-        filterExamples: ["contains(DisplayName, 'BV')"]
+      Notes: {
+        description: 'Notes attached to entities',
+        sortableFields: KNOWN_SORTABLE_FIELDS['Notes'],
+        filterExamples: ["EntityLinkType eq 'Person'", "EntityId eq 123"],
+        joinInfo: 'EntityId + EntityLinkType links to Person/Organisation'
       },
       OpenPositionDebtors: {
         description: 'Outstanding receivables (debtor aging)',
         sortableFields: KNOWN_SORTABLE_FIELDS['OpenPositionDebtors'],
         filterExamples: ["Age gt 90", "OutstandingAmount gt 1000"]
       },
-      Notes: {
-        description: 'Notes attached to entities',
-        sortableFields: KNOWN_SORTABLE_FIELDS['Notes'],
-        filterExamples: ["EntityLinkType eq 'Person'", "EntityId eq 123"]
+      OpenPositionCreditors: {
+        description: 'Outstanding payables (creditor aging)',
+        sortableFields: KNOWN_SORTABLE_FIELDS['OpenPositionCreditors'],
+        filterExamples: ["Age gt 30"]
+      },
+      Owners: {
+        description: 'Property owners with contact info and company details',
+        sortableFields: KNOWN_SORTABLE_FIELDS['Owners'],
+        filterExamples: ["State eq 'Active'", "contains(DisplayName, 'BV')"]
+      },
+      SalesInvoices: {
+        description: 'Sales invoices to tenants',
+        sortableFields: KNOWN_SORTABLE_FIELDS['SalesInvoices'],
+        filterExamples: ["WorkflowState eq 'Final'", "FinancialYear eq 2025"]
+      },
+      OwnerSettlements: {
+        description: 'Owner settlements/statements (afrekeningen)',
+        sortableFields: KNOWN_SORTABLE_FIELDS['OwnerSettlements'],
+        filterExamples: ["WorkflowState eq 'Final'"]
+      },
+      Tasks: {
+        description: 'System tasks and reminders',
+        sortableFields: KNOWN_SORTABLE_FIELDS['Tasks'],
+        filterExamples: ["Status eq 'Open'", "Status ne 'Completed'"]
+      },
+      Addresses: {
+        description: 'Address records with coordinates',
+        sortableFields: KNOWN_SORTABLE_FIELDS['Addresses'],
+        filterExamples: ["City eq 'Amsterdam'"]
+      },
+      MeterReadings: {
+        description: 'Meter reading values over time',
+        sortableFields: KNOWN_SORTABLE_FIELDS['MeterReadings'],
+        filterExamples: ["ReadingDate gt 2025-01-01"],
+        joinInfo: 'MeterId links to Meters.MeterId'
+      },
+      IndexationMethods: {
+        description: 'Rent indexation methods (CPI, fixed, etc)',
+        sortableFields: KNOWN_SORTABLE_FIELDS['IndexationMethods'],
+        filterExamples: ["Type eq 'MonthlyIndex'"]
+      },
+      CommercialOverview: {
+        description: 'Commercial summary per property - NO JOIN NEEDED! Contains tenant, owner, rent, contract dates',
+        sortableFields: KNOWN_SORTABLE_FIELDS['CommercialOverview'],
+        filterExamples: ["IsOccupied eq true", "IsOccupied eq false"],
+        note: 'Excellent for quick portfolio overview without complex joins'
+      },
+      SalesInvoiceLines: {
+        description: 'Individual invoice lines with property and ledger account',
+        joinInfo: 'SalesInvoiceId → SalesInvoices, RealEstateObjectId → Units, LedgerAccountId → LedgerAccounts'
+      },
+      PurchaseInvoices: {
+        description: 'Purchase invoices from suppliers',
+        filterExamples: ["WorkflowState eq 'Final'", "FinancialYear eq 2025"],
+        joinInfo: 'RelationId → Relations (supplier), ServiceTicketId → ServiceTickets, PurchaseContractId → PurchaseContracts'
+      },
+      PurchaseInvoiceLines: {
+        description: 'Individual purchase invoice lines',
+        joinInfo: 'PurchaseInvoiceId → PurchaseInvoices, RealEstateObjectId → Units'
+      },
+      Installations: {
+        description: 'Equipment and installations (CV, lift, etc) with maintenance schedules',
+        filterExamples: ["NextMaintenanceOn lt 2026-06-01"],
+        joinInfo: 'RealEstateObjectId → Units, SupplierId → Relations (maintenance company)'
+      },
+      PurchaseContracts: {
+        description: 'Contracts with suppliers (cleaning, maintenance, etc)',
+        joinInfo: 'RelationId → Relations (supplier), OwnerId → Owners'
+      },
+      PurchaseContractLines: {
+        description: 'Line items on purchase contracts',
+        joinInfo: 'PurchaseContractId → PurchaseContracts, RealEstateObjectId → Units'
+      },
+      OwnerBankAccounts: {
+        description: 'Bank accounts per owner',
+        joinInfo: 'OwnerId → Owners'
+      },
+      Relations: {
+        description: 'Base table for all relation types (persons, organisations, suppliers, owners)',
+        sortableFields: KNOWN_SORTABLE_FIELDS['Relations'],
+        note: 'Use specific tables like Persons, Owners for more details'
+      },
+      Addresses: {
+        description: 'Addresses linked to entities via EntityLinkType',
+        sortableFields: KNOWN_SORTABLE_FIELDS['Addresses'],
+        filterExamples: ["EntityLinkType eq 4", "City eq 'Rotterdam'"],
+        joinInfo: 'EntityId + EntityLinkType links to Person(4), Organisation(3), Unit(13), etc.'
+      },
+      SalesContractLines: {
+        description: 'Rent components per contract (bare rent, service costs, etc)',
+        joinInfo: 'SalesContractId → SalesContracts, RealEstateObjectId → Units'
+      },
+      Buildings: {
+        description: 'Building-level real estate objects',
+        joinInfo: 'OwnerId → Owners, can contain multiple Units'
+      },
+      Sections: {
+        description: 'Sections within complexes',
+        joinInfo: 'ComplexId → Complexes'
+      },
+      RealEstateObjects: {
+        description: 'Base table for all property types (Buildings, Complexes, Units, Sections)',
+        note: 'Use specific tables like Units, Complexes, Buildings for typed access'
+      }
+    },
+    commonJoins: {
+      // === TENANT / HUURDER RELATIES ===
+      'Tenant to Property': 'SalesContracts.SalesContractId → SalesContractRealestateObjects.SalesContractId, then RealEstateObjectId → Units.UnitId',
+      'Tenant Contact Info': 'SalesContracts.RelationId → Persons.RelationId (for phone, email)',
+      'Tenant Address': 'SalesContracts.RelationId → Addresses (filter EntityLinkType=Person/Organisation, EntityId=RelationId)',
+      'Tenant Invoices': 'SalesContracts.RelationId → SalesInvoices.RelationId',
+      'Tenant Outstanding': 'SalesContracts.RelationId → OpenPositionDebtors.RelationId',
+      
+      // === PROPERTY / PAND RELATIES ===
+      'Property WOZ Value': 'Units.UnitId → PropertyValuationValues.RealEstateObjectId',
+      'Property Meters': 'Units.UnitId → Meters.RealEstateObjectId → MeterReadings.MeterId',
+      'Property Installations': 'Units.UnitId → Installations.RealEstateObjectId',
+      'Property ServiceTickets': 'Units.UnitId → ServiceTickets.RealEstateObjectId',
+      'Property in Complex': 'Units.ComplexId → Complexes.ComplexId',
+      'Property Owner': 'Units.OwnerId → Owners.OwnerId',
+      'Property Financials': 'Units.UnitId → FinancialMutations.RealEstateObjectId',
+      
+      // === OWNER / EIGENAAR RELATIES ===
+      'Owner Contact Info': 'Owners.RelationId → Persons.RelationId OR Relations.RelationId',
+      'Owner Settlements': 'Owners.OwnerId → OwnerSettlements.OwnerId',
+      'Owner Properties': 'Owners.OwnerId → Units (filter OwnerId) OR RealEstateObjects',
+      'Owner Bank Accounts': 'Owners.OwnerId → OwnerBankAccounts.OwnerId',
+      
+      // === INVOICE / FACTUUR RELATIES ===
+      'SalesInvoice Lines': 'SalesInvoices.SalesInvoiceId → SalesInvoiceLines.SalesInvoiceId',
+      'SalesInvoice to Property': 'SalesInvoiceLines.RealEstateObjectId → Units.UnitId',
+      'SalesInvoice to Contract': 'SalesInvoices.SalesContractId → SalesContracts.SalesContractId',
+      'PurchaseInvoice Lines': 'PurchaseInvoices.PurchaseInvoiceId → PurchaseInvoiceLines.PurchaseInvoiceId',
+      'PurchaseInvoice to Supplier': 'PurchaseInvoices.RelationId → Relations.RelationId',
+      'PurchaseInvoice to Ticket': 'PurchaseInvoices.ServiceTicketId → ServiceTickets.ServiceTicketId',
+      
+      // === NOTES / NOTITIES ===
+      'Person Notes': 'Notes (filter EntityLinkType=Person, EntityId=PersonId)',
+      'Property Notes': 'Notes (filter EntityLinkType=Unit/Building/Complex, EntityId=RealEstateObjectId)',
+      'Contract Notes': 'Notes (filter EntityLinkType=PrivateRentSalesContract, EntityId=SalesContractId)',
+      
+      // === TASKS / TAKEN ===
+      'Task to Entity': 'Tasks.ReferenceToEntityId + ReferenceToEntityLinkType → linked entity',
+      
+      // === FINANCIALS ===
+      'Mutation to LedgerAccount': 'FinancialMutations.LedgerAccountId → LedgerAccounts.LedgerAccountId',
+      'Mutation to Relation': 'FinancialMutations.RelationId → Relations.RelationId (e.g., bank name)',
+      'Mortgage Payments': 'FinancialMutations (filter LedgerAccountCode=5001) → shows bank, property, amount'
+    },
+    
+    entityLinkTypes: {
+      description: 'Values for EntityLinkType field in Notes, Tasks, Addresses',
+      types: {
+        'Owner': 1, 'Supplier': 2, 'Organisation': 3, 'Person': 4, 'EstateAgent': 5, 'Financier': 6,
+        'Building': 11, 'Complex': 12, 'Unit': 13, 'Section': 14, 'Project': 15,
+        'GeneralSalesContract': 21, 'PrivateRentSalesContract': 23, 'CommercialRentSalesContract': 25,
+        'ServiceSalesContract': 27, 'SupplierContract': 28,
+        'SalesInvoice': 41, 'PurchaseInvoice': 42,
+        'ServiceTicket': 63, 'Installation': 67
       }
     },
     queryParameters: {
