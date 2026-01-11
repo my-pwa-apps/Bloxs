@@ -45,6 +45,9 @@ const KNOWN_SORTABLE_FIELDS = {
   'Installations': ['InstallationId', 'RealEstateObjectId', 'Name', 'InstallationTypeName', 'NextMaintenanceOn'],
   'Projects': ['ProjectId', 'Reference', 'Name', 'StartDate', 'EndDate', 'Status'],
   'Buildings': ['BuildingId', 'RealEstateObjectId', 'Reference', 'DisplayName', 'DisplayAddress', 'OwnerId', 'Owner', 'CategoryName'],
+  'SalesContractLineItems': ['SalesContractLineItemId', 'SalesContractId', 'RealEstateObjectId', 'RealEstateObjectName', 'Amount', 'StartDate', 'EndDate', 'LedgerAccountName'],
+  'PurchaseInvoices': ['PurchaseInvoiceId', 'Reference', 'InvoiceDate', 'DueDate', 'WorkflowState', 'TotalValueIncluding', 'RelationName', 'RealEstateObjectName', 'FinancialYear'],
+  'PurchaseInvoiceLines': ['PurchaseInvoiceLineId', 'PurchaseInvoiceId', 'RealEstateObjectId', 'RealEstateObjectName', 'Amount', 'LedgerAccountName'],
   'RealEstateObjects': ['RealEstateObjectId', 'Reference', 'DisplayName', 'DisplayAddress', 'CategoryName'],
   'default': ['Id', 'Reference', 'DisplayName', 'Name']
 };
@@ -469,14 +472,20 @@ async function handleMetadataSummary(env) {
         joinInfo: 'SalesInvoiceId → SalesInvoices, RealEstateObjectId → Units, LedgerAccountId → LedgerAccounts'
       },
       PurchaseInvoices: {
-        description: 'Purchase invoices from suppliers',
-        filterExamples: ["InvoiceDate ge 2025-01-01", "FinancialYear eq 2025"],
-        joinInfo: 'RelationId → Relations (supplier), ServiceTicketId → ServiceTickets, PurchaseContractId → PurchaseContracts',
-        note: "WorkflowState values are tenant- and language-specific. To filter by state, first sample recent invoices ($top=10, $select=PurchaseInvoiceId,WorkflowState,InvoiceDate) to discover valid values, then filter using the exact returned value(s)."
+        description: 'Purchase invoices from suppliers - KEY for cost analysis',
+        sortableFields: KNOWN_SORTABLE_FIELDS['PurchaseInvoices'],
+        keyFields: ['PurchaseInvoiceId', 'Reference', 'InvoiceDate', 'TotalValueIncluding', 'RelationName', 'RealEstateObjectName', 'FinancialYear'],
+        filterExamples: ["InvoiceDate ge 2025-01-01", "FinancialYear eq 2025", "contains(RealEstateObjectName,'straat')"],
+        joinInfo: 'RelationId → Relations (supplier), ServiceTicketId → ServiceTickets',
+        note: "Contains RealEstateObjectName directly for many invoices. WorkflowState is tenant-specific - sample first. Use for cost analysis per property."
       },
       PurchaseInvoiceLines: {
-        description: 'Individual purchase invoice lines',
-        joinInfo: 'PurchaseInvoiceId → PurchaseInvoices, RealEstateObjectId → Units'
+        description: 'Individual purchase invoice lines with property breakdown',
+        sortableFields: KNOWN_SORTABLE_FIELDS['PurchaseInvoiceLines'],
+        keyFields: ['PurchaseInvoiceLineId', 'PurchaseInvoiceId', 'RealEstateObjectId', 'RealEstateObjectName', 'Amount'],
+        filterExamples: ["RealEstateObjectId eq 123", "Amount gt 1000"],
+        joinInfo: 'PurchaseInvoiceId → PurchaseInvoices, RealEstateObjectId → Units',
+        note: 'Use when PurchaseInvoices.RealEstateObjectName is null - lines often have property details.'
       },
       TheoreticalRentItems: {
         description: 'Potential/market rent per property - key for vacancy impact analysis',
@@ -519,6 +528,13 @@ async function handleMetadataSummary(env) {
         description: 'Rent components per contract (bare rent, service costs, etc)',
         joinInfo: 'SalesContractId → SalesContracts, RealEstateObjectId → Units'
       },
+      SalesContractLineItems: {
+        description: 'Detailed rent line items with amounts - KEY for rent analysis per property/owner',
+        sortableFields: KNOWN_SORTABLE_FIELDS['SalesContractLineItems'],
+        keyFields: ['SalesContractLineItemId', 'SalesContractId', 'RealEstateObjectId', 'RealEstateObjectName', 'Amount', 'StartDate', 'EndDate'],
+        filterExamples: ["Amount gt 0", "contains(RealEstateObjectName,'straat')", "EndDate ge 2025-01-01"],
+        note: 'Contains RealEstateObjectName directly - no join needed for property info. Use for rent totals per property/owner.'
+      },
       Buildings: {
         description: 'Building-level real estate objects (standalone properties)',
         sortableFields: KNOWN_SORTABLE_FIELDS['Buildings'],
@@ -538,24 +554,123 @@ async function handleMetadataSummary(env) {
       }
     },
     ownerWorkflows: {
-      description: 'Step-by-step workflows for owner-based queries',
+      description: 'Step-by-step workflows for owner-based queries - CRITICAL: never loop per property!',
       'Mortgages by Owner': {
         steps: [
           '1. Query Owners with contains(DisplayName,"eigenaarsnaam") to get OwnerId',
-          '2. Query Units OR Buildings with OwnerId eq {id} to get RealEstateObjectId/RealEstateObjectName list ($top=200, $select=UnitId,RealEstateObjectId,DisplayName,DisplayAddress)',
+          '2. Query Units OR Buildings with OwnerId eq {id}, $top=200, $select=UnitId,RealEstateObjectId,DisplayName,DisplayAddress,Owner',
           '3. Query LedgerAccounts with contains(Name,"hypothe") OR contains(Name,"lening") to get ledger Codes',
-          '4. Query FinancialMutations with FinancialYear eq 2025 and LedgerAccountCode in discovered codes, $top=100, $select=RealEstateObjectName,Amount,RelationName,TransactionDate,Description',
-          '5. Match mutations to properties from step 2 by RealEstateObjectName'
+          '4. Query FinancialMutations with FinancialYear eq 2025 and LedgerAccountCode in discovered codes, $top=100',
+          '5. Match mutations to properties from step 2 by RealEstateObjectName in-memory'
         ],
         note: 'Do NOT loop per property! Fetch all in one query and match in-memory.'
       },
       'Properties by Owner': {
         steps: [
           '1. Query Owners to get OwnerId',
-          '2. Query Units with OwnerId eq {id}, $select=UnitId,DisplayName,DisplayAddress,ComplexName,OccupationPercentage',
+          '2. Query Units with OwnerId eq {id}, $select=UnitId,DisplayName,DisplayAddress,ComplexName,OccupationPercentage,CategoryName',
           '3. OR Query Buildings with OwnerId eq {id} for standalone buildings'
         ],
         note: 'Units and Buildings have OwnerId. Complexes/Sections do NOT have OwnerId directly.'
+      },
+      'Contracts by Owner': {
+        steps: [
+          '1. Query Owners to get OwnerId',
+          '2. Query Units with OwnerId eq {id}, $select=UnitId,DisplayName,ActiveContractRentId',
+          '3. Query SalesContracts with $top=200, $select=SalesContractId,Reference,RelationName,StartDate,EndDate,IsEnded',
+          '4. Match contracts to units by SalesContractId = ActiveContractRentId in-memory'
+        ],
+        alternativeMethod: 'OR: Query SalesContractLineItems ($top=300) which contains RealEstateObjectName directly, then filter in-memory by property names from step 2.',
+        note: 'SalesContracts has OwnerName field - can also filter directly: contains(OwnerName,"eigenaarsnaam")'
+      },
+      'Service Tickets by Owner': {
+        steps: [
+          '1. Query Units with OwnerId eq {id}, $select=UnitId,DisplayName,RealEstateObjectId',
+          '2. Query ServiceTickets ($top=200, $select=ServiceTicketId,Reference,RealEstateObjectName,ServiceTicketStateName,ReportingDate)',
+          '3. Match tickets to units by comparing RealEstateObjectName to DisplayName in-memory'
+        ],
+        note: 'ServiceTickets has RealEstateObjectName - no join table needed. Do NOT filter per property!'
+      },
+      'Costs by Owner (Purchase Invoices)': {
+        steps: [
+          '1. Query Units with OwnerId eq {id}, $select=UnitId,DisplayName,RealEstateObjectId',
+          '2. Query PurchaseInvoices with FinancialYear eq 2025, $top=200, $select=PurchaseInvoiceId,Reference,InvoiceDate,TotalValueIncluding,RealEstateObjectName,RelationName',
+          '3. Match invoices to units by RealEstateObjectName in-memory',
+          '4. If RealEstateObjectName often null: Query PurchaseInvoiceLines instead for property breakdown'
+        ],
+        note: 'PurchaseInvoices often has RealEstateObjectName. Use PurchaseInvoiceLines for line-level property detail.'
+      },
+      'WOZ Values by Owner': {
+        steps: [
+          '1. Query Units with OwnerId eq {id}, $select=UnitId,RealEstateObjectId,DisplayName,DisplayAddress',
+          '2. Query PropertyValuationValues with ValuationYear eq 2025 or 2026, $top=200',
+          '3. Match valuations to units by RealEstateObjectId in-memory'
+        ],
+        note: 'PropertyValuationValues uses RealEstateObjectId, NOT UnitId. Match via RealEstateObjectId from Units.'
+      },
+      'Arrears by Owner (Achterstanden)': {
+        steps: [
+          '1. Query Units with OwnerId eq {id}, $select=UnitId,DisplayName,ActiveContractRentId,ActiveContractRentTenantId',
+          '2. Query OpenPositionDebtors with Age gt 0, $top=200, $select=SalesInvoiceId,RelationId,RelationName,OutstandingAmount,Age,DueDate',
+          '3. Match debtors to units by RelationId = ActiveContractRentTenantId in-memory'
+        ],
+        alternativeMethod: 'OR: Query SalesInvoices with OwnerName filter, then match to OpenPositionDebtors by SalesInvoiceId.',
+        note: 'OpenPositionDebtors has RelationId (tenant) and Age (days overdue).'
+      },
+      'Rent per Property (Huurinkomsten)': {
+        steps: [
+          '1. Query SalesContractLineItems with $top=500, $select=SalesContractLineItemId,RealEstateObjectId,RealEstateObjectName,Amount,StartDate,EndDate',
+          '2. Group by RealEstateObjectName and sum Amount for annual rent per property',
+          '3. If owner-specific: first get property list from Units with OwnerId, then filter in-memory'
+        ],
+        note: 'SalesContractLineItems contains RealEstateObjectName directly. Amount is typically monthly rent.'
+      },
+      'Meters & Installations by Owner': {
+        steps: [
+          '1. Query Units with OwnerId eq {id}, $select=UnitId,RealEstateObjectId,DisplayName',
+          '2. Query Meters OR Installations ($top=200), which have RealEstateObjectId',
+          '3. Match by RealEstateObjectId in-memory'
+        ],
+        note: 'Meters/Installations link via RealEstateObjectId to Units.'
+      },
+      'Expiring Contracts by Owner': {
+        steps: [
+          '1. Query SalesContracts with EndDate lt 2027-01-01 and IsEnded eq false, $top=100',
+          '2. Filter by OwnerName if available: contains(OwnerName,"eigenaarsnaam")',
+          '3. OR: Query Units with OwnerId, then match via SalesContractRealestateObjects'
+        ],
+        note: 'SalesContracts often has OwnerName field - check first with $top=5 to see available fields.'
+      }
+    },
+    commonFilterIssues: {
+      description: 'Common filtering problems and solutions',
+      'Field not found: Address': {
+        problem: 'Many entities use DisplayAddress, not Address',
+        solution: 'Use DisplayAddress instead of Address for Units, Buildings, RealEstateObjects'
+      },
+      'Field not found: Name': {
+        problem: 'Many entities use DisplayName, not Name',
+        solution: 'Use DisplayName instead of Name for most entities'
+      },
+      'Field not found: Id': {
+        problem: 'Each entity has its own Id field name (UnitId, BuildingId, etc.)',
+        solution: 'Use the specific Id field: UnitId, BuildingId, SalesContractId, etc.'
+      },
+      'No results for Status/State filter': {
+        problem: 'Status/State/WorkflowState values are tenant- and language-specific',
+        solution: 'First sample with $top=10 to discover valid values, then use exact match'
+      },
+      'RealEstateObjectName is null': {
+        problem: 'Not all records have RealEstateObjectName populated',
+        solution: 'For invoices: check PurchaseInvoiceLines. For tickets: usually populated. For mutations: usually populated.'
+      },
+      'OwnerId filter returns empty': {
+        problem: 'Not all entities have OwnerId directly',
+        solution: 'OwnerId exists on: Units, Buildings. NOT on: Complexes, Sections, RealEstateObjects base table.'
+      },
+      'Cannot sort by field X': {
+        problem: 'Not all fields support $orderby',
+        solution: 'Use Id or Reference fields for sorting. Avoid sorting by calculated or nullable fields.'
       }
     },
     commonJoins: {
