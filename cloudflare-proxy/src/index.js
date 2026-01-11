@@ -6,17 +6,13 @@
  * 
  * Features:
  * - Automatic JWT token refresh
- * - Schema/metadata caching for field validation
+ * - Query-parameter guardrails (e.g., safe $orderby)
  * - Intelligent error handling with field suggestions
  */
 
 // Token cache (in-memory, per worker instance)
 let cachedToken = null;
 let tokenExpiry = 0;
-
-// Schema cache for entity metadata
-let schemaCache = {};
-let schemaCacheExpiry = 0;
 
 // Known sortable fields per entity (fallback if metadata unavailable)
 const KNOWN_SORTABLE_FIELDS = {
@@ -133,20 +129,40 @@ async function validateAndFixQuery(search, entityName, env, token) {
   
   // If there's an $orderby, validate the field exists
   if (orderBy) {
-    const fieldName = orderBy.split(' ')[0]; // Extract field name (before 'asc'/'desc')
     const knownFields = KNOWN_SORTABLE_FIELDS[entityName] || KNOWN_SORTABLE_FIELDS['default'];
-    
-    if (!knownFields.includes(fieldName)) {
-      // Try to find a similar field or use a safe default
+
+    // Support multi-field orderby: "Field1 desc, Field2 asc"
+    const segments = orderBy
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const normalizedSegments = [];
+    for (const segment of segments) {
+      const [rawField, rawDirection] = segment.split(/\s+/, 2);
+      const fieldName = (rawField || '').trim();
+      const direction = (rawDirection || '').toLowerCase();
+
+      if (fieldName && knownFields.includes(fieldName)) {
+        normalizedSegments.push(direction === 'desc' ? `${fieldName} desc` : fieldName);
+      }
+    }
+
+    if (normalizedSegments.length === 0) {
       const safeField = findSafeOrderByField(entityName);
       if (safeField) {
-        const direction = orderBy.includes('desc') ? ' desc' : '';
+        const direction = orderBy.toLowerCase().includes('desc') ? ' desc' : '';
         params.set('$orderby', safeField + direction);
         console.log(`Fixed $orderby: ${orderBy} -> ${safeField}${direction}`);
       } else {
-        // Remove invalid orderby entirely
         params.delete('$orderby');
         console.log(`Removed invalid $orderby: ${orderBy}`);
+      }
+    } else {
+      const normalized = normalizedSegments.join(', ');
+      if (normalized !== orderBy) {
+        params.set('$orderby', normalized);
+        console.log(`Normalized $orderby: ${orderBy} -> ${normalized}`);
       }
     }
   }
@@ -218,6 +234,10 @@ async function handleMetadataSummary(env) {
   const summary = {
     description: 'Available OData entities and their commonly used fields',
     note: 'Important: many label fields (Status/State/WorkflowState/CategoryName/etc.) are tenant- and language-specific. Do not hardcode string equals filters; first discover valid values via lookup endpoints or by sampling recent records, then filter using the exact returned values.',
+    agentRules: {
+      batching: 'Never query per unit/property in a loop. Fetch each entity once ($top=200–500) and group/join in-memory.',
+      financialMutations: 'FinancialMutations can be very large: always use a restrictive $filter and keep $top <= 100.'
+    },
     businessInsights: {
       "Vacancy Rate": "Calculate: (Count of Units with OccupationPercentage < 1.0) / Total Units. High vacancy (>5%) requires attention.",
       "Financial Vacancy": "Sum of 'Potential Rent' for vacant units. Use TheoreticalRentItems for potential rent.",
