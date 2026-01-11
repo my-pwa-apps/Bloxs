@@ -253,6 +253,83 @@ async function handleMetadataSummary(env) {
       "Contract Renewal Risk": "Count of SalesContracts where EndDate is within 90 days. High count needs attention.",
       "Debtor Days Outstanding": "Average Age from OpenPositionDebtors. > 45 days indicates collection issues."
     },
+    crossEntityInsights: {
+      description: 'Advanced insights requiring reasoning across multiple entities - NOT available in Bloxs GUI',
+      insights: {
+        "Vacancy Financial Impact": {
+          description: "Total potential rent lost due to vacancy",
+          sources: ["Units (OccupationPercentage lt 1)", "TheoreticalRentItems (Amount per vacant UnitId)"],
+          calculation: "Sum TheoreticalRentItems.Amount for all Units where OccupationPercentage < 1. Group by Owner/Complex for actionable breakdown.",
+          businessValue: "Quantifies the €-cost of vacancy, enabling ROI analysis for marketing/renovation investments."
+        },
+        "Problem Property Identification": {
+          description: "Properties with disproportionate maintenance cost or ticket volume",
+          sources: ["ServiceTickets (count per RealEstateObjectName)", "PurchaseInvoices (sum per RealEstateObjectId)", "Units (for context)"],
+          calculation: "Count open ServiceTickets per property. Sum PurchaseInvoices (maintenance-related) per property. Flag properties >2x average.",
+          businessValue: "Identifies 'money pits' that may need major renovation or divestment consideration."
+        },
+        "Tenant Risk Score": {
+          description: "Composite risk assessment per tenant based on payment behavior and lease terms",
+          sources: ["OpenPositionDebtors (Age, OutstandingAmount per RelationId)", "SalesContracts (EndDate, RelationId)"],
+          calculation: "Score = (Avg Payment Age / 30) + (OutstandingAmount / MonthlyRent) + (Months to Expiry < 6 ? 1 : 0). Higher = riskier.",
+          businessValue: "Prioritize collection efforts and identify tenants needing retention or exit strategies."
+        },
+        "Net Operating Income (NOI) by Property": {
+          description: "Property-level profitability analysis",
+          sources: ["SalesContractLineItems or SalesInvoiceLines (income)", "FinancialMutations or PurchaseInvoiceLines (expenses by RealEstateObjectId)"],
+          calculation: "NOI = Annual Rent Income - Operating Expenses (exclude financing). Group by property.",
+          businessValue: "Identifies underperforming assets and validates investment decisions. GUI only shows totals."
+        },
+        "Owner Portfolio Comparison": {
+          description: "Benchmark owners against each other on key metrics",
+          sources: ["Units (grouped by OwnerId)", "OpenPositionDebtors", "ServiceTickets", "TheoreticalRentItems"],
+          calculation: "Per Owner: Vacancy Rate, Arrears %, Tickets per Unit, Avg Rent/m². Rank owners.",
+          businessValue: "For multi-owner managers: compare performance, justify management fees, identify best/worst performers."
+        },
+        "Lease Renewal Opportunity Value": {
+          description: "Potential rent uplift from expiring contracts",
+          sources: ["SalesContracts (EndDate in next 12 months)", "SalesContractLineItems (current rent)", "TheoreticalRentItems (market rent)"],
+          calculation: "Gap = TheoreticalRent - CurrentContractRent for expiring contracts. Positive = upside opportunity.",
+          businessValue: "Quantifies revenue upside from rent reversion. Prioritize renewals with biggest gaps."
+        },
+        "Concentration Risk Analysis": {
+          description: "Portfolio dependency on single tenants/properties",
+          sources: ["SalesContractLineItems or SalesInvoices (rent by RelationId)", "Units (value by property)"],
+          calculation: "Top 5 tenants as % of total rent. Top 5 properties as % of total value. >30% single = high risk.",
+          businessValue: "Critical for portfolio risk management. Not visible in standard Bloxs reporting."
+        },
+        "Deferred Maintenance Liability": {
+          description: "Estimated cost of open maintenance backlog",
+          sources: ["ServiceTickets (open)", "ServiceTicketCostCategories", "PurchaseInvoices (historical avg per category)"],
+          calculation: "Open Tickets × Avg Cost per Category (from historical PurchaseInvoices linked to tickets).",
+          businessValue: "Estimates hidden liability. Essential for property valuations and sale negotiations."
+        },
+        "Cash Collection Efficiency Trend": {
+          description: "Are we getting better or worse at collecting rent?",
+          sources: ["OpenPositionDebtors (snapshot)", "SalesInvoices (historical, by month)"],
+          calculation: "Monthly: (Collected / Invoiced) %. Plot 12-month trend.",
+          businessValue: "Early warning for deteriorating tenant quality or economic conditions."
+        },
+        "Indexation Impact Forecast": {
+          description: "Projected rent increase from upcoming indexations",
+          sources: ["SalesContracts (with IndexationMethodId)", "IndexationSeries + IndexationSeriesValues (latest %)", "SalesContractLineItems (current rent)"],
+          calculation: "For contracts with upcoming indexation: CurrentRent × LatestIndexPercentage = Increase.",
+          businessValue: "Forecast revenue growth from CPI/indexation. Budget planning essential."
+        },
+        "CAPEX vs OPEX Trend": {
+          description: "Capital expenditure vs operating expense balance",
+          sources: ["FinancialMutations (by LedgerAccountCode)", "LedgerAccounts (to classify CAPEX vs OPEX)"],
+          calculation: "Classify ledger accounts as CAPEX (improvements, renovations) or OPEX (repairs, services). Plot ratio over time.",
+          businessValue: "Indicates maintenance strategy: reactive (high OPEX) vs proactive (balanced CAPEX). Affects asset value."
+        },
+        "Installation Risk Matrix": {
+          description: "Equipment approaching end-of-life or overdue maintenance",
+          sources: ["Installations (NextMaintenanceOn, InstallationTypeName)", "Units (for property context)"],
+          calculation: "Flag: Overdue maintenance, Age > Expected Lifespan (by type). Cross with property value.",
+          businessValue: "Prevent costly emergency repairs. Plan CAPEX reserves."
+        }
+      }
+    },
     entities: {
       Units: {
         description: 'Rental units (apartments, offices, retail spaces). Core entity for occupancy analysis.',
