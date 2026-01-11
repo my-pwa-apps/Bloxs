@@ -40,6 +40,10 @@ const KNOWN_SORTABLE_FIELDS = {
   'Notes': ['NoteId', 'CreatedOnTimeStamp', 'LastEditedOnTimeStamp', 'EntityLinkType', 'EntityId'],
   'OpenPositionDebtors': ['SalesInvoiceId', 'InvoiceDate', 'DueDate', 'Age', 'OutstandingAmount', 'RelationName'],
   'OpenPositionCreditors': ['PurchaseInvoiceId', 'InvoiceDate', 'DueDate', 'Age', 'OutstandingAmount', 'RelationName'],
+  'TheoreticalRentItems': ['TheoreticalRentItemId', 'RealEstateObjectId', 'RealEstateObjectName', 'Amount', 'StartDate', 'EndDate'],
+  'PurchaseOrders': ['PurchaseOrderId', 'Reference', 'OrderDate', 'RelationName', 'TotalAmount', 'WorkflowState'],
+  'Installations': ['InstallationId', 'RealEstateObjectId', 'Name', 'InstallationTypeName', 'NextMaintenanceOn'],
+  'Projects': ['ProjectId', 'Reference', 'Name', 'StartDate', 'EndDate', 'Status'],
   'default': ['Id', 'Reference', 'DisplayName', 'Name']
 };
 
@@ -244,7 +248,10 @@ async function handleMetadataSummary(env) {
       "Arrears (Achterstanden)": "Sum of 'OutstandingAmount' in OpenPositionDebtors where Age > 30 days.",
       "Maintenance Velocity": "Turnover rate of ServiceTickets. Calculate: (Closed Tickets last 30 days) / (New Tickets last 30 days).",
       "Cost per Unit": "Sum of FinancialMutations (Expense) linked to a Unit / Number of Units in that property.",
-      "LTV (Loan to Value)": "Mortgage Amount (from FinancialMutations) / Property Value (from PropertyValuationValues). > 70% is high risk."
+      "LTV (Loan to Value)": "Mortgage Amount (from FinancialMutations) / Property Value (from PropertyValuationValues). > 70% is high risk.",
+      "Rent Coverage Ratio": "Annual Rent (from TheoreticalRentItems or SalesContractLines) / Annual Costs. < 1.2 is risky.",
+      "Contract Renewal Risk": "Count of SalesContracts where EndDate is within 90 days. High count needs attention.",
+      "Debtor Days Outstanding": "Average Age from OpenPositionDebtors. > 45 days indicates collection issues."
     },
     entities: {
       Units: {
@@ -392,10 +399,25 @@ async function handleMetadataSummary(env) {
         description: 'Individual purchase invoice lines',
         joinInfo: 'PurchaseInvoiceId → PurchaseInvoices, RealEstateObjectId → Units'
       },
+      TheoreticalRentItems: {
+        description: 'Potential/market rent per property - key for vacancy impact analysis',
+        sortableFields: KNOWN_SORTABLE_FIELDS['TheoreticalRentItems'],
+        filterExamples: ["RealEstateObjectId eq 123", "Amount gt 0"],
+        joinInfo: 'RealEstateObjectId → Units.UnitId',
+        note: 'Use this to calculate financial impact of vacancy: sum Amount for vacant units.'
+      },
       Installations: {
         description: 'Equipment and installations (CV, lift, etc) with maintenance schedules',
+        sortableFields: KNOWN_SORTABLE_FIELDS['Installations'],
         filterExamples: ["NextMaintenanceOn lt 2026-06-01"],
-        joinInfo: 'RealEstateObjectId → Units, SupplierId → Relations (maintenance company)'
+        joinInfo: 'RealEstateObjectId → Units, SupplierId → Relations (maintenance company)',
+        note: 'Useful for preventive maintenance planning. Filter by NextMaintenanceOn for upcoming maintenance.'
+      },
+      Projects: {
+        description: 'Renovation/development projects with budgets and timelines',
+        sortableFields: KNOWN_SORTABLE_FIELDS['Projects'],
+        filterExamples: ["Status eq 'Active'", "EndDate gt 2026-01-01"],
+        note: 'Status values may be tenant-specific. Sample first to discover valid values.'
       },
       PurchaseContracts: {
         description: 'Contracts with suppliers (cleaning, maintenance, etc)',
