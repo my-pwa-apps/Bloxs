@@ -1,0 +1,70 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "Container",
+      "$data": "${$root}",
+      "items": [
+        {
+          "type": "ColumnSet",
+          "columns": [
+            {
+              "type": "Column",
+              "width": "stretch",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "${if(DisplayName, DisplayName, Reference)}",
+                  "weight": "Bolder",
+                  "size": "Medium",
+                  "wrap": true
+                },
+                {
+                  "type": "TextBlock",
+                  "text": "${if(DisplayAddress, DisplayAddress, 'Adres onbekend')}",
+                  "spacing": "None",
+                  "isSubtle": true,
+                  "wrap": true
+                }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": "auto",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "${if(OccupationPercentage == 1, '🟢', if(OccupationPercentage > 0, '🟡', '🔴'))}",
+                  "size": "Large"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "FactSet",
+          "facts": [
+            {
+              "title": "Categorie",
+              "value": "${if(CategoryName, CategoryName, 'n.v.t.')}"
+            },
+            {
+              "title": "Eigenaar",
+              "value": "${if(Owner, Owner, 'n.v.t.')}"
+            },
+            {
+              "title": "Bezetting",
+              "value": "${if(OccupationPercentage, formatNumber(mul(OccupationPercentage, 100), 0) + '%', 'n.v.t.')}"
+            },
+            {
+              "title": "Oppervlakte",
+              "value": "${if(RentableFloorArea, formatNumber(RentableFloorArea, 0) + ' m²', 'n.v.t.')}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

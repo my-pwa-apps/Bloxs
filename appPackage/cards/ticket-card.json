@@ -1,0 +1,74 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "Container",
+      "$data": "${$root}",
+      "items": [
+        {
+          "type": "ColumnSet",
+          "columns": [
+            {
+              "type": "Column",
+              "width": "stretch",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "${if(Reference, Reference, 'Ticket #' + ServiceTicketId)}",
+                  "weight": "Bolder",
+                  "size": "Medium",
+                  "wrap": true
+                },
+                {
+                  "type": "TextBlock",
+                  "text": "${if(RealEstateObjectName, RealEstateObjectName, 'Locatie onbekend')}",
+                  "spacing": "None",
+                  "isSubtle": true,
+                  "wrap": true
+                }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": "auto",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "${if(ClosingDate, '✅', '🔧')}",
+                  "size": "Large"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "FactSet",
+          "facts": [
+            {
+              "title": "Status",
+              "value": "${if(ServiceTicketStateName, ServiceTicketStateName, 'Onbekend')}"
+            },
+            {
+              "title": "Huurder",
+              "value": "${if(TenantName, TenantName, 'n.v.t.')}"
+            },
+            {
+              "title": "Leverancier",
+              "value": "${if(SupplierName, SupplierName, 'n.v.t.')}"
+            },
+            {
+              "title": "Gemeld op",
+              "value": "${if(ReportingDate, formatDateTime(ReportingDate, 'dd-MM-yyyy'), 'n.v.t.')}"
+            },
+            {
+              "title": "Afgesloten op",
+              "value": "${if(ClosingDate, formatDateTime(ClosingDate, 'dd-MM-yyyy'), 'Open')}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

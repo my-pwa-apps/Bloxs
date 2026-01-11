@@ -1,9 +1,10 @@
 {
-  "$schema": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.3/schema.json",
-  "schema_version": "v2.3",
+  "$schema": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.4/schema.json",
+  "schema_version": "v2.4",
   "name_for_human": "Bloxs Real Estate",
   "description_for_human": "Connect to Bloxs real estate software to query properties, tenants, contracts, and maintenance.",
-  "description_for_model": "This plugin allows you to query comprehensive information from the Bloxs real estate management platform via OData API (read-only access). Use this plugin to:\n\n1. **Relations & Contacts**: Query tenants, persons, and property owners using getRelations, getPersons, getOwners. Get contact details with getRelationContactPersons, getRelationCommunicationForms.\n\n2. **Real Estate Objects**: Get details about buildings, complexes, sections, and rental units using getRealEstateObjects, getBuildings, getComplexes, getSections, getUnits. Filter units by OccupationPercentage (< 1 means vacant). Get valuations with getPropertyValuationValues, installations with getInstallations, meters with getMeters.\n\n3. **Contracts**: Access sales contracts (rent contracts) and purchase contracts. Use getSalesContracts, getCommercialRentContracts, getPurchaseContracts, getSalesContractLineItems, getFinancingContracts. Get indexation info with getIndexationMethods, getIndexationSeries.\n\n4. **Maintenance**: View service tickets using getServiceTickets. Get categories with getServiceTicketProblemCategories, states with getServiceTicketStates, cost categories with getServiceTicketCostCategories.\n\n5. **Finance**: Access invoices, journals, budgets using getSalesInvoices, getPurchaseInvoices, getJournals, getLedgerAccounts, getBudgets, getFinancialMutations, getOwnerSettlements, getTaxRates.\n\n6. **Notes & Tasks**: Get notes attached to entities with getNotes. Get tasks with getTasks.\n\n7. **Reports**: Get commercial overview with getCommercialOverview, control list with getControlList.\n\nImportant: many filter fields use tenant- and language-specific labels (e.g., Status/State/WorkflowState/CategoryName). Do not hardcode these values. Prefer lookup endpoints (like getServiceTicketStates) or first sample recent records ($top=10–20 with $select of the field) to discover valid values, then filter using the exact returned value(s).\n\nAll operations support OData query parameters: $filter, $select, $orderby, $top, $skip, $count, $expand.\n\nThis plugin is read-only and cannot create or modify any data.",
+  "contact_email": "support@bloxs.com",
+  "description_for_model": "This plugin provides read-only access to the Bloxs real estate management platform via OData API. Use it for portfolio analysis, financial insights, and property management queries.\n\n## QUICK START - COMMON QUERIES\n\n**Portfolio Overview:** Use getCommercialOverview - contains tenant, owner, rent, contract dates in ONE call. No joins needed.\n\n**Vacancy Analysis:** getUnits with $filter=OccupationPercentage lt 1, then getTheoreticalRentItems for financial impact.\n\n**Arrears/Debtors:** getOpenPositionDebtors - segment by Age field (30/60/90+ days). Contains RelationName, OutstandingAmount, Age.\n\n**Maintenance:** First getServiceTicketStates to discover valid state names, then getServiceTickets. Contains RealEstateObjectName directly.\n\n**Contracts Expiring:** getSalesContracts with $filter=EndDate lt [date] and IsEnded eq false.\n\n**Mortgages/Loans:** First getLedgerAccounts with contains(Name,'hypothe') to find Codes, then getFinancialMutations. NOTE: getFinancingContracts is often empty!\n\n**By Owner:** getOwners to get OwnerId, then getUnits or getBuildings with $filter=OwnerId eq {id}. Match other entities by RealEstateObjectName in-memory.\n\n## CRITICAL RULES\n\n1. **Field Names:** Use DisplayName (not Name), DisplayAddress (not Address). OwnerId exists on Units/Buildings only.\n\n2. **Status/State Fields:** Values are tenant-specific. First sample with $top=10 to discover valid values.\n\n3. **Performance:** Never loop per record. Fetch once with $top=200-500, group in-memory. FinancialMutations: always use $filter and $top≤100.\n\n4. **Owner Names with '/':** Treat as ONE owner (e.g., 'Roksvast/Meja'), never split.\n\n## ENTITY CATEGORIES\n\n**Relations:** getRelations, getPersons, getOwners, getRelationContactPersons, getRelationCommunicationForms\n\n**Properties:** getRealEstateObjects, getBuildings, getComplexes, getSections, getUnits, getPropertyValuationValues, getInstallations, getMeters\n\n**Contracts:** getSalesContracts, getCommercialRentContracts, getSalesContractLineItems, getSalesContractRealestateObjects, getFinancingContracts, getIndexationMethods\n\n**Maintenance:** getServiceTickets, getServiceTicketStates, getServiceTicketProblemCategories, getServiceTicketCostCategories\n\n**Finance:** getSalesInvoices, getPurchaseInvoices, getFinancialMutations, getLedgerAccounts, getOpenPositionDebtors, getOpenPositionCreditors, getOwnerSettlements\n\n**Reports:** getCommercialOverview (best for portfolio dashboards), getControlList\n\nAll operations support: $filter, $select, $orderby, $top, $skip, $count, $expand.",
   "namespace": "bloxs",
   "logo_url": "https://www.bloxs.com/wp-content/uploads/2024/06/logo.png",
   "legal_info_url": "https://www.bloxs.com/privacyverklaring/",
@@ -11,92 +12,147 @@
   "functions": [
     { 
       "name": "getRelations", 
-      "description": "Get all relations (tenants, contacts, counterparties)",
+      "description": "Get all relations (tenants, landlords, suppliers, contacts). Base table for all party types.",
       "capabilities": { "security_info": { "data_handling": ["GetPrivateData"] } }
     },
     { 
       "name": "getPersons", 
-      "description": "Get all persons (individuals, contact persons) with contact details",
+      "description": "Get persons with contact details (phone, email). Link via RelationId to contracts/invoices.",
       "capabilities": { "security_info": { "data_handling": ["GetPrivateData"] } }
     },
     { 
       "name": "getOwners", 
-      "description": "Get property owners (each has their own financial administration)",
+      "description": "Get property owners. Each owner has separate financials. Use OwnerId to filter Units/Buildings.",
       "capabilities": { "security_info": { "data_handling": ["GetPrivateData"] } }
     },
     { 
       "name": "getRelationContactPersons", 
-      "description": "Get contact persons linked to relations",
+      "description": "Get contact persons linked to organisations/relations.",
       "capabilities": { "security_info": { "data_handling": ["GetPrivateData"] } }
     },
     { 
       "name": "getRelationCommunicationForms", 
-      "description": "Get communication methods (email, phone) for relations",
+      "description": "Get communication methods (email, phone, mobile) for relations.",
       "capabilities": { "security_info": { "data_handling": ["GetPrivateData"] } }
     },
     { 
       "name": "getOwnerBankAccounts", 
-      "description": "Get bank accounts for property owners",
+      "description": "Get bank accounts for property owners.",
       "capabilities": { "security_info": { "data_handling": ["GetPrivateData"] } }
     },
-    { "name": "getSupplierTypes", "description": "Get supplier type categories" },
-    { "name": "getRealEstateObjects", "description": "Get all real estate objects (buildings, complexes, units)" },
-    { "name": "getBuildings", "description": "Get buildings (standalone properties)" },
-    { "name": "getComplexes", "description": "Get complexes (collections of rental units under one roof)" },
-    { "name": "getSections", "description": "Get sections (parts of buildings for cost allocation)" },
-    { "name": "getUnits", "description": "Get rental units. Use $filter=OccupationPercentage lt 1 for vacant units." },
-    { "name": "getPropertyValuationValues", "description": "Get property valuations (WOZ values, market values)" },
-    { "name": "getPropertyValuationTypes", "description": "Get valuation type definitions" },
-    { "name": "getTheoreticalRentItems", "description": "Get theoretical rent amounts for properties" },
-    { "name": "getMeters", "description": "Get utility meters (gas, electricity, water)" },
-    { "name": "getMeterReadings", "description": "Get meter reading history" },
-    { "name": "getInstallations", "description": "Get installations in properties (HVAC, elevators)" },
-    { "name": "getInstallationTypes", "description": "Get installation type definitions" },
-    { "name": "getProjects", "description": "Get projects (renovation, development projects)" },
-    { "name": "getTeamMembers", "description": "Get team members assigned to properties" },
-    { "name": "getSalesContracts", "description": "Get sales (rent) contracts" },
-    { "name": "getCommercialRentContracts", "description": "Get commercial rent contracts" },
-    { "name": "getPurchaseContracts", "description": "Get purchase (supplier) contracts" },
-    { "name": "getSalesContractLineItems", "description": "Get line items from sales contracts" },
-    { "name": "getSalesContractLines", "description": "Get contract line details" },
-    { "name": "getSalesContractRealestateObjects", "description": "Get properties linked to sales contracts" },
-    { "name": "getSalesContractExtensionPeriods", "description": "Get contract extension period options" },
-    { "name": "getIndexationMethods", "description": "Get rent indexation methods" },
-    { "name": "getIndexationSeries", "description": "Get indexation series (CPI, etc.)" },
-    { "name": "getIndexationSeriesValues", "description": "Get historical indexation values" },
-    { "name": "getFinancingContracts", "description": "Get financing/loan contracts" },
-    { "name": "getPurchaseContractLines", "description": "Get purchase contract line items" },
-    { "name": "getServiceTickets", "description": "Get maintenance service tickets" },
-    { "name": "getServiceTicketStates", "description": "Get available service ticket states" },
-    { "name": "getServiceTicketProblemCategories", "description": "Get problem categories for service tickets" },
-    { "name": "getServiceTicketCostCategories", "description": "Get cost categories for maintenance tickets" },
+    { "name": "getSupplierTypes", "description": "Get supplier type categories (maintenance, cleaning, etc.)." },
+    { "name": "getRealEstateObjects", "description": "Base table for all properties. Use specific tables (Units, Buildings) for OwnerId filtering." },
+    { "name": "getBuildings", "description": "Get standalone buildings. Has OwnerId for owner filtering. Use DisplayAddress, not Address." },
+    { "name": "getComplexes", "description": "Get complexes (multiple units under one roof). Has OccupationPercentage." },
+    { "name": "getSections", "description": "Get sections (cost allocation subdivisions within buildings)." },
+    { 
+      "name": "getUnits", 
+      "description": "CORE ENTITY for rental units. Has OwnerId, OccupationPercentage (<1 = vacant), CategoryName. Use DisplayName/DisplayAddress.",
+      "capabilities": { 
+        "confirmation": { "type": "None", "isNonConsequential": true },
+        "response_semantics": {
+          "data_path": "$.value",
+          "properties": { "title": "$.DisplayName", "subtitle": "$.DisplayAddress" },
+          "static_template": { "file": "cards/unit-card.json" }
+        }
+      }
+    },
+    { "name": "getPropertyValuationValues", "description": "Get WOZ/market valuations. Filter by ValuationYear. Link via RealEstateObjectId to Units." },
+    { "name": "getPropertyValuationTypes", "description": "Get valuation type definitions (WOZ, Market, Insurance)." },
+    { "name": "getTheoreticalRentItems", "description": "Get market/potential rent per property. KEY for vacancy financial impact analysis." },
+    { "name": "getMeters", "description": "Get utility meters (gas, electricity, water). Has EANCode, RealEstateObjectId." },
+    { "name": "getMeterReadings", "description": "Get meter reading history. Link via MeterId." },
+    { "name": "getInstallations", "description": "Get installations (HVAC, elevators, fire systems). Has NextMaintenanceOn for planning." },
+    { "name": "getInstallationTypes", "description": "Get installation type definitions." },
+    { "name": "getProjects", "description": "Get renovation/development projects. Has StartDate, EndDate, Status." },
+    { "name": "getTeamMembers", "description": "Get team members assigned to properties." },
+    { 
+      "name": "getSalesContracts", 
+      "description": "Get rent contracts. Has StartDate, EndDate, IsEnded, RelationName, OwnerName. Filter expiring contracts by EndDate.",
+      "capabilities": { 
+        "confirmation": { "type": "None", "isNonConsequential": true },
+        "response_semantics": {
+          "data_path": "$.value",
+          "properties": { "title": "$.RelationName", "subtitle": "$.Reference" },
+          "static_template": { "file": "cards/contract-card.json" }
+        }
+      }
+    },
+    { "name": "getCommercialRentContracts", "description": "Get commercial rent contracts (offices, retail). Subset of SalesContracts." },
+    { "name": "getPurchaseContracts", "description": "Get supplier contracts (cleaning, maintenance agreements)." },
+    { "name": "getSalesContractLineItems", "description": "Get rent components with amounts. Has RealEstateObjectName directly - no join needed. KEY for rent analysis." },
+    { "name": "getSalesContractLines", "description": "Get contract line details (rent types, service costs)." },
+    { "name": "getSalesContractRealestateObjects", "description": "JOIN TABLE: Link SalesContracts to Units via SalesContractId → RealEstateObjectId." },
+    { "name": "getSalesContractExtensionPeriods", "description": "Get contract extension/renewal period options." },
+    { "name": "getIndexationMethods", "description": "Get rent indexation methods (CPI, fixed percentage)." },
+    { "name": "getIndexationSeries", "description": "Get indexation series definitions (CPI Netherlands, etc.)." },
+    { "name": "getIndexationSeriesValues", "description": "Get historical indexation percentages by year." },
+    { "name": "getFinancingContracts", "description": "Get financing/loan contracts. WARNING: Often empty! Use LedgerAccounts + FinancialMutations instead." },
+    { "name": "getPurchaseContractLines", "description": "Get purchase contract line items." },
+    { 
+      "name": "getServiceTickets", 
+      "description": "Get maintenance tickets. Has RealEstateObjectName, TenantName, SupplierName directly - no joins needed.",
+      "capabilities": { 
+        "confirmation": { "type": "None", "isNonConsequential": true },
+        "response_semantics": {
+          "data_path": "$.value",
+          "properties": { "title": "$.Reference", "subtitle": "$.RealEstateObjectName" },
+          "static_template": { "file": "cards/ticket-card.json" }
+        }
+      }
+    },
+    { "name": "getServiceTicketStates", "description": "LOOKUP: Get valid ticket state names. Query FIRST before filtering ServiceTickets by state." },
+    { "name": "getServiceTicketProblemCategories", "description": "Get problem categories for maintenance classification." },
+    { "name": "getServiceTicketCostCategories", "description": "Get cost categories for maintenance budgeting." },
     { 
       "name": "getSalesInvoices", 
-      "description": "Get sales invoices (rent invoices to tenants)",
+      "description": "Get rent invoices to tenants. Has OwnerName, RelationName, WorkflowState (sample first for valid values).",
       "capabilities": { "security_info": { "data_handling": ["GetPrivateData"] } }
     },
-    { "name": "getSalesInvoiceLines", "description": "Get line items from sales invoices" },
-    { "name": "getPurchaseInvoices", "description": "Get purchase invoices (from suppliers)" },
-    { "name": "getPurchaseInvoiceLines", "description": "Get line items from purchase invoices" },
-    { "name": "getJournals", "description": "Get financial journals" },
-    { "name": "getJournalPostTransactions", "description": "Get journal posting transactions" },
-    { "name": "getLedgerAccounts", "description": "Get chart of accounts (ledger accounts)" },
-    { "name": "getBankAccounts", "description": "Get bank accounts" },
-    { "name": "getBudgets", "description": "Get budgets" },
-    { "name": "getFinancialMutations", "description": "Get financial mutations/transactions" },
-    { "name": "getTaxRates", "description": "Get tax rate definitions (VAT rates)" },
-    { "name": "getOwnerSettlements", "description": "Get owner settlements (periodic financial settlements)" },
-    { "name": "getOpenPositionDebtors", "description": "Get open debtor positions (outstanding receivables)" },
-    { "name": "getOpenPositionCreditors", "description": "Get open creditor positions (outstanding payables)" },
-    { "name": "getPurchaseOrders", "description": "Get purchase orders" },
-    { "name": "getPurchaseOrderLines", "description": "Get purchase order line items" },
-    { "name": "getPurchaseCommitments", "description": "Get purchase commitments" },
-    { "name": "getWorkRegistrations", "description": "Get work/time registrations" },
-    { "name": "getNotes", "description": "Get notes attached to entities (persons, organisations, properties)" },
-    { "name": "getTasks", "description": "Get tasks" },
-    { "name": "getAddresses", "description": "Get all addresses" },
-    { "name": "getCommercialOverview", "description": "Get commercial portfolio overview" },
-    { "name": "getControlList", "description": "Get control list items for auditing" }
+    { "name": "getSalesInvoiceLines", "description": "Get invoice line items with RealEstateObjectId for property breakdown." },
+    { "name": "getPurchaseInvoices", "description": "Get supplier invoices. Has RealEstateObjectName. KEY for cost analysis per property." },
+    { "name": "getPurchaseInvoiceLines", "description": "Get invoice lines with property breakdown when PurchaseInvoices.RealEstateObjectName is null." },
+    { "name": "getJournals", "description": "Get financial journals (bank, sales, purchase journals)." },
+    { "name": "getJournalPostTransactions", "description": "Get journal posting transactions." },
+    { "name": "getLedgerAccounts", "description": "Get chart of accounts. Use contains(Name,'hypothe') to find mortgage accounts, then query FinancialMutations." },
+    { "name": "getBankAccounts", "description": "Get bank accounts." },
+    { "name": "getBudgets", "description": "Get maintenance/operational budgets." },
+    { "name": "getFinancialMutations", "description": "Get ledger transactions. PRIMARY source for mortgage data. Always use $filter and $top≤100. Has RealEstateObjectName, Amount." },
+    { "name": "getTaxRates", "description": "Get VAT rate definitions." },
+    { "name": "getOwnerSettlements", "description": "Get periodic owner settlements/statements (afrekeningen)." },
+    { 
+      "name": "getOpenPositionDebtors", 
+      "description": "Get outstanding receivables. Has Age (days overdue), OutstandingAmount, RelationName. KEY for arrears analysis.",
+      "capabilities": { 
+        "confirmation": { "type": "None", "isNonConsequential": true },
+        "response_semantics": {
+          "data_path": "$.value",
+          "properties": { "title": "$.RelationName", "subtitle": "$.OutstandingAmount" },
+          "static_template": { "file": "cards/debtor-card.json" }
+        }
+      }
+    },
+    { "name": "getOpenPositionCreditors", "description": "Get outstanding payables (unpaid supplier invoices)." },
+    { "name": "getPurchaseOrders", "description": "Get purchase orders." },
+    { "name": "getPurchaseOrderLines", "description": "Get purchase order line items." },
+    { "name": "getPurchaseCommitments", "description": "Get purchase commitments (contracted future expenses)." },
+    { "name": "getWorkRegistrations", "description": "Get work/time registrations." },
+    { "name": "getNotes", "description": "Get notes attached to entities. Filter by EntityLinkType and EntityId." },
+    { "name": "getTasks", "description": "Get tasks and reminders. Has Deadline, Status." },
+    { "name": "getAddresses", "description": "Get addresses with coordinates." },
+    { 
+      "name": "getCommercialOverview", 
+      "description": "BEST FOR DASHBOARDS: Portfolio overview with tenant, owner, rent, occupancy in ONE call. No joins needed.",
+      "capabilities": { 
+        "confirmation": { "type": "None", "isNonConsequential": true },
+        "response_semantics": {
+          "data_path": "$.value",
+          "properties": { "title": "$.Address", "subtitle": "$.TenantName" },
+          "static_template": { "file": "cards/commercial-overview-card.json" }
+        }
+      }
+    },
+    { "name": "getControlList", "description": "Get control list items for auditing." }
   ],
   "runtimes": [
     {
@@ -106,7 +162,8 @@
         "reference_id": "${{BLOXS_API_KEY_REFERENCE}}"
       },
       "spec": {
-        "url": "bloxs-openapi.yaml"
+        "url": "bloxs-openapi.yaml",
+        "progress_style": "ShowUsageWithInput"
       },
       "run_for_functions": [
         "getRelations",

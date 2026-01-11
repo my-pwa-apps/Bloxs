@@ -1,0 +1,70 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "Container",
+      "$data": "${$root}",
+      "items": [
+        {
+          "type": "ColumnSet",
+          "columns": [
+            {
+              "type": "Column",
+              "width": "stretch",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "${if(RelationName, RelationName, 'Onbekende relatie')}",
+                  "weight": "Bolder",
+                  "size": "Medium",
+                  "wrap": true
+                },
+                {
+                  "type": "TextBlock",
+                  "text": "Factuur: ${if(Reference, Reference, SalesInvoiceId)}",
+                  "spacing": "None",
+                  "isSubtle": true,
+                  "wrap": true
+                }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": "auto",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "${if(Age > 90, '🔴', if(Age > 60, '🟠', if(Age > 30, '🟡', '🟢')))}",
+                  "size": "Large"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "FactSet",
+          "facts": [
+            {
+              "title": "Openstaand",
+              "value": "€ ${if(OutstandingAmount, formatNumber(OutstandingAmount, 2), '0,00')}"
+            },
+            {
+              "title": "Leeftijd",
+              "value": "${if(Age, Age + ' dagen', 'n.v.t.')}"
+            },
+            {
+              "title": "Vervaldatum",
+              "value": "${if(DueDate, formatDateTime(DueDate, 'dd-MM-yyyy'), 'n.v.t.')}"
+            },
+            {
+              "title": "Eigenaar",
+              "value": "${if(OwnerName, OwnerName, 'n.v.t.')}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

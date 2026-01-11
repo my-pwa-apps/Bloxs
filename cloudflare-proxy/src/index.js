@@ -19,51 +19,80 @@ const ALLOWED_METHODS = new Set(['GET', 'OPTIONS']);
 // Backward-compatible entity casing fixes (path segment -> canonical segment)
 // Bloxs entity set names can be case-sensitive.
 const ENTITY_PATH_ALIASES = {
-  Owners: 'owners'
+  Owners: 'owners',
+  OWNERS: 'owners',
+  CommercialOverview: 'CommercialOverview',
+  commercialoverview: 'CommercialOverview'
 };
 
 // Entity-specific query caps (lowercased entity name)
 const ENTITY_TOP_CAPS = {
-  financialmutations: 100
+  financialmutations: 100,
+  journalposttransactions: 100,
+  salesinvoicelines: 200,
+  purchaseinvoicelines: 200
 };
 
 const LEARN_INDEX_KEY = 'learn:index:v1';
 
 // Known sortable fields per entity (fallback if metadata unavailable)
 const KNOWN_SORTABLE_FIELDS = {
-  'ServiceTickets': ['ServiceTicketId', 'Reference', 'ReportingDate', 'ClosingDate', 'Priority', 'RealEstateObjectName', 'TenantName', 'SupplierName'],
-  'ServiceTicketStates': ['ServiceTicketStateId', 'Name'],
-  'Units': ['UnitId', 'DisplayName', 'Reference', 'CategoryName', 'OccupationPercentage', 'Owner', 'OwnerId'],
-  'SalesContracts': ['SalesContractId', 'Reference', 'StartDate', 'EndDate', 'RelationName', 'OwnerName'],
+  'ServiceTickets': ['ServiceTicketId', 'Reference', 'ReportingDate', 'ClosingDate', 'Priority', 'RealEstateObjectName', 'TenantName', 'SupplierName', 'ServiceTicketStateName'],
+  'ServiceTicketStates': ['ServiceTicketStateId', 'Name', 'SortOrder'],
+  'ServiceTicketProblemCategories': ['ServiceTicketProblemCategoryId', 'Name', 'SortOrder'],
+  'ServiceTicketCostCategories': ['ServiceTicketCostCategoryId', 'Name', 'SortOrder'],
+  'Units': ['UnitId', 'DisplayName', 'Reference', 'CategoryName', 'OccupationPercentage', 'Owner', 'OwnerId', 'RentableFloorArea', 'ComplexName'],
+  'SalesContracts': ['SalesContractId', 'Reference', 'StartDate', 'EndDate', 'RelationName', 'OwnerName', 'IsEnded'],
   'SalesContractRealestateObjects': ['SalesContractId', 'RealEstateObjectId', 'SortingIndex'],
+  'SalesContractLineItems': ['SalesContractLineItemId', 'SalesContractId', 'RealEstateObjectId', 'RealEstateObjectName', 'Amount', 'StartDate', 'EndDate', 'LedgerAccountName'],
   'FinancingContracts': ['FinancingContractId', 'Reference', 'StartDate', 'EndDate', 'PrincipalAmount', 'RealEstateObjectId'],
-  'FinancialMutations': ['JournalPostId', 'TransactionDate', 'LedgerAccountCode', 'Amount', 'RealEstateObjectName', 'RelationName', 'FinancialYear'],
+  'FinancialMutations': ['JournalPostId', 'TransactionDate', 'LedgerAccountCode', 'Amount', 'RealEstateObjectName', 'RelationName', 'FinancialYear', 'BookingDate'],
   'LedgerAccounts': ['LedgerAccountId', 'Code', 'Name', 'LedgerAccountType'],
-  'Relations': ['RelationId', 'DisplayName', 'Reference'],
+  'Relations': ['RelationId', 'DisplayName', 'Reference', 'IsActive'],
   'Persons': ['PersonId', 'RelationId', 'DisplayName', 'FirstName', 'LastName', 'Email'],
   'Owners': ['OwnerId', 'RelationId', 'DisplayName', 'Reference', 'State', 'Email'],
   'Complexes': ['ComplexId', 'RealEstateObjectId', 'Reference', 'DisplayName', 'Owner', 'OccupationPercentage'],
-  'SalesInvoices': ['SalesInvoiceId', 'Reference', 'InvoiceDate', 'DueDate', 'WorkflowState', 'TotalValueIncluding', 'OwnerName', 'RelationName'],
+  'SalesInvoices': ['SalesInvoiceId', 'Reference', 'InvoiceDate', 'DueDate', 'WorkflowState', 'TotalValueIncluding', 'OwnerName', 'RelationName', 'FinancialYear'],
+  'SalesInvoiceLines': ['SalesInvoiceLineId', 'SalesInvoiceId', 'RealEstateObjectId', 'Amount', 'LedgerAccountName'],
   'OwnerSettlements': ['OwnerSettlementId', 'Reference', 'PeriodStart', 'PeriodEnd', 'OwnerName', 'TotalSettlementBalance'],
   'Tasks': ['TaskId', 'Status', 'Deadline', 'ShowFromDate', 'TaskCategory'],
-  'Addresses': ['AddressId', 'Street', 'City', 'PostalCode'],
+  'Addresses': ['AddressId', 'Street', 'City', 'PostalCode', 'Country'],
   'Meters': ['MeterId', 'RealEstateObjectId', 'CategoryName', 'EANCode'],
   'MeterReadings': ['MeterReadingId', 'MeterId', 'ReadingDate', 'ReadingValue'],
   'IndexationMethods': ['IndexationMethodId', 'Name', 'Type'],
+  'IndexationSeries': ['IndexationSeriesId', 'Name'],
+  'IndexationSeriesValues': ['IndexationSeriesValueId', 'IndexationSeriesId', 'Year', 'Percentage'],
   'CommercialOverview': ['RealEstateObjectId', 'Address', 'OwnerName', 'TenantName', 'IsOccupied'],
-  'PropertyValuationValues': ['PropertyValuationValueId', 'RealEstateObjectId', 'ValuationYear', 'Value'],
+  'PropertyValuationValues': ['PropertyValuationValueId', 'RealEstateObjectId', 'ValuationYear', 'Value', 'ValuationTypeName'],
+  'PropertyValuationTypes': ['PropertyValuationTypeId', 'Name'],
   'Notes': ['NoteId', 'CreatedOnTimeStamp', 'LastEditedOnTimeStamp', 'EntityLinkType', 'EntityId'],
-  'OpenPositionDebtors': ['SalesInvoiceId', 'InvoiceDate', 'DueDate', 'Age', 'OutstandingAmount', 'RelationName'],
+  'OpenPositionDebtors': ['SalesInvoiceId', 'InvoiceDate', 'DueDate', 'Age', 'OutstandingAmount', 'RelationName', 'OwnerName'],
   'OpenPositionCreditors': ['PurchaseInvoiceId', 'InvoiceDate', 'DueDate', 'Age', 'OutstandingAmount', 'RelationName'],
   'TheoreticalRentItems': ['TheoreticalRentItemId', 'RealEstateObjectId', 'RealEstateObjectName', 'Amount', 'StartDate', 'EndDate'],
   'PurchaseOrders': ['PurchaseOrderId', 'Reference', 'OrderDate', 'RelationName', 'TotalAmount', 'WorkflowState'],
+  'PurchaseOrderLines': ['PurchaseOrderLineId', 'PurchaseOrderId', 'RealEstateObjectId', 'Amount'],
   'Installations': ['InstallationId', 'RealEstateObjectId', 'Name', 'InstallationTypeName', 'NextMaintenanceOn'],
+  'InstallationTypes': ['InstallationTypeId', 'Name'],
   'Projects': ['ProjectId', 'Reference', 'Name', 'StartDate', 'EndDate', 'Status'],
   'Buildings': ['BuildingId', 'RealEstateObjectId', 'Reference', 'DisplayName', 'DisplayAddress', 'OwnerId', 'Owner', 'CategoryName'],
-  'SalesContractLineItems': ['SalesContractLineItemId', 'SalesContractId', 'RealEstateObjectId', 'RealEstateObjectName', 'Amount', 'StartDate', 'EndDate', 'LedgerAccountName'],
+  'Sections': ['SectionId', 'ComplexId', 'Reference', 'DisplayName'],
   'PurchaseInvoices': ['PurchaseInvoiceId', 'Reference', 'InvoiceDate', 'DueDate', 'WorkflowState', 'TotalValueIncluding', 'RelationName', 'RealEstateObjectName', 'FinancialYear'],
   'PurchaseInvoiceLines': ['PurchaseInvoiceLineId', 'PurchaseInvoiceId', 'RealEstateObjectId', 'RealEstateObjectName', 'Amount', 'LedgerAccountName'],
+  'PurchaseContracts': ['PurchaseContractId', 'Reference', 'RelationName', 'StartDate', 'EndDate'],
+  'PurchaseContractLines': ['PurchaseContractLineId', 'PurchaseContractId', 'RealEstateObjectId', 'Amount'],
   'RealEstateObjects': ['RealEstateObjectId', 'Reference', 'DisplayName', 'DisplayAddress', 'CategoryName'],
+  'Journals': ['JournalId', 'Code', 'Name', 'JournalType'],
+  'JournalPostTransactions': ['JournalPostId', 'TransactionDate', 'BookingDate', 'JournalId', 'Amount'],
+  'BankAccounts': ['BankAccountId', 'IBAN', 'Name', 'OwnerId'],
+  'OwnerBankAccounts': ['OwnerBankAccountId', 'OwnerId', 'IBAN', 'BankAccountName'],
+  'Budgets': ['BudgetId', 'Name', 'Year', 'Amount'],
+  'TaxRates': ['TaxRateId', 'Code', 'Name', 'Percentage'],
+  'TeamMembers': ['TeamMemberId', 'RealEstateObjectId', 'PersonId', 'Role'],
+  'WorkRegistrations': ['WorkRegistrationId', 'Date', 'Hours', 'PersonId'],
+  'ControlList': ['ControlListId', 'Reference', 'Status', 'DueDate'],
+  'RelationContactPersons': ['RelationContactPersonId', 'RelationId', 'PersonId'],
+  'RelationCommunicationForms': ['RelationCommunicationFormId', 'RelationId', 'Type', 'Value'],
+  'SupplierTypes': ['SupplierTypeId', 'Name'],
   'default': ['Id', 'Reference', 'DisplayName', 'Name']
 };
 

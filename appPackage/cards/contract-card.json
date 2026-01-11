@@ -1,0 +1,70 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "Container",
+      "$data": "${$root}",
+      "items": [
+        {
+          "type": "ColumnSet",
+          "columns": [
+            {
+              "type": "Column",
+              "width": "stretch",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "${if(RelationName, RelationName, 'Onbekende huurder')}",
+                  "weight": "Bolder",
+                  "size": "Medium",
+                  "wrap": true
+                },
+                {
+                  "type": "TextBlock",
+                  "text": "Contract: ${if(Reference, Reference, SalesContractId)}",
+                  "spacing": "None",
+                  "isSubtle": true,
+                  "wrap": true
+                }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": "auto",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "${if(IsEnded, '⏹️', '▶️')}",
+                  "size": "Large"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "FactSet",
+          "facts": [
+            {
+              "title": "Eigenaar",
+              "value": "${if(OwnerName, OwnerName, 'n.v.t.')}"
+            },
+            {
+              "title": "Startdatum",
+              "value": "${if(StartDate, formatDateTime(StartDate, 'dd-MM-yyyy'), 'n.v.t.')}"
+            },
+            {
+              "title": "Einddatum",
+              "value": "${if(EndDate, formatDateTime(EndDate, 'dd-MM-yyyy'), 'Onbepaald')}"
+            },
+            {
+              "title": "Status",
+              "value": "${if(IsEnded, 'Beëindigd', 'Actief')}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "Container",
+      "$data": "${$root}",
+      "items": [
+        {
+          "type": "ColumnSet",
+          "columns": [
+            {
+              "type": "Column",
+              "width": "stretch",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "${if(Address, Address, 'Adres onbekend')}",
+                  "weight": "Bolder",
+                  "size": "Medium",
+                  "wrap": true
+                },
+                {
+                  "type": "TextBlock",
+                  "text": "${if(TenantName, TenantName, 'Leegstand')}",
+                  "spacing": "None",
+                  "isSubtle": true,
+                  "wrap": true
+                }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": "auto",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "${if(IsOccupied, '🏠', '🏚️')}",
+                  "size": "Large"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "FactSet",
+          "facts": [
+            {
+              "title": "Eigenaar",
+              "value": "${if(OwnerName, OwnerName, 'n.v.t.')}"
+            },
+            {
+              "title": "Huurder",
+              "value": "${if(TenantName, TenantName, 'Leegstand')}"
+            },
+            {
+              "title": "Status",
+              "value": "${if(IsOccupied, 'Verhuurd', 'Leegstand')}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
