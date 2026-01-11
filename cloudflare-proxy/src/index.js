@@ -218,18 +218,26 @@ async function handleMetadataSummary(env) {
   const summary = {
     description: 'Available OData entities and their commonly used fields',
     note: 'Important: many label fields (Status/State/WorkflowState/CategoryName/etc.) are tenant- and language-specific. Do not hardcode string equals filters; first discover valid values via lookup endpoints or by sampling recent records, then filter using the exact returned values.',
+    businessInsights: {
+      "Vacancy Rate": "Calculate: (Count of Units with OccupationPercentage < 1.0) / Total Units. High vacancy (>5%) requires attention.",
+      "Financial Vacancy": "Sum of 'Potential Rent' for vacant units. Use TheoreticalRentItems for potential rent.",
+      "Arrears (Achterstanden)": "Sum of 'OutstandingAmount' in OpenPositionDebtors where Age > 30 days.",
+      "Maintenance Velocity": "Turnover rate of ServiceTickets. Calculate: (Closed Tickets last 30 days) / (New Tickets last 30 days).",
+      "Cost per Unit": "Sum of FinancialMutations (Expense) linked to a Unit / Number of Units in that property.",
+      "LTV (Loan to Value)": "Mortgage Amount (from FinancialMutations) / Property Value (from PropertyValuationValues). > 70% is high risk."
+    },
     entities: {
       Units: {
-        description: 'Rental units (apartments, offices, retail spaces)',
+        description: 'Rental units (apartments, offices, retail spaces). Core entity for occupancy analysis.',
         sortableFields: KNOWN_SORTABLE_FIELDS['Units'],
-        filterExamples: ["OccupationPercentage lt 1", "OwnerId eq 515", "contains(CategoryName,'Winkel')"],
-        note: 'Use OwnerId to filter by owner. RealEstateObjects base table does NOT have OwnerId - use Units instead.'
+        filterExamples: ["OccupationPercentage lt 1 (Vacant)", "OwnerId eq 515", "contains(CategoryName,'Winkel')"],
+        note: 'Use OwnerId to filter by owner. RealEstateObjects base table does NOT have OwnerId - use Units instead. Use OccupationPercentage < 1 to find vacant units.'
       },
       SalesContracts: {
-        description: 'Rent contracts with tenants (contains RelationId/RelationName = tenant)',
+        description: 'Rent contracts with tenants.',
         sortableFields: KNOWN_SORTABLE_FIELDS['SalesContracts'],
-        filterExamples: ["IsEnded eq false", "EndDate lt 2026-06-01"],
-        joinInfo: 'Use SalesContractRealestateObjects to link to Units'
+        filterExamples: ["IsEnded eq false", "EndDate lt 2026-06-01 (Upcoming Expiration)"],
+        joinInfo: 'Use SalesContractRealestateObjects to link to Units. Use RelationId to link to Persons/Tenants.'
       },
       SalesContractRealestateObjects: {
         description: 'JOIN TABLE linking SalesContracts to RealEstateObjects/Units',
