@@ -44,6 +44,8 @@ const KNOWN_SORTABLE_FIELDS = {
   'PurchaseOrders': ['PurchaseOrderId', 'Reference', 'OrderDate', 'RelationName', 'TotalAmount', 'WorkflowState'],
   'Installations': ['InstallationId', 'RealEstateObjectId', 'Name', 'InstallationTypeName', 'NextMaintenanceOn'],
   'Projects': ['ProjectId', 'Reference', 'Name', 'StartDate', 'EndDate', 'Status'],
+  'Buildings': ['BuildingId', 'RealEstateObjectId', 'Reference', 'DisplayName', 'DisplayAddress', 'OwnerId', 'Owner', 'CategoryName'],
+  'RealEstateObjects': ['RealEstateObjectId', 'Reference', 'DisplayName', 'DisplayAddress', 'CategoryName'],
   'default': ['Id', 'Reference', 'DisplayName', 'Name']
 };
 
@@ -518,8 +520,11 @@ async function handleMetadataSummary(env) {
         joinInfo: 'SalesContractId → SalesContracts, RealEstateObjectId → Units'
       },
       Buildings: {
-        description: 'Building-level real estate objects',
-        joinInfo: 'OwnerId → Owners, can contain multiple Units'
+        description: 'Building-level real estate objects (standalone properties)',
+        sortableFields: KNOWN_SORTABLE_FIELDS['Buildings'],
+        filterExamples: ["OwnerId eq 515", "contains(DisplayName,'straat')", "contains(Owner,'Roks')"],
+        keyFields: ['BuildingId', 'RealEstateObjectId', 'Reference', 'DisplayName', 'DisplayAddress', 'OwnerId', 'Owner'],
+        note: 'Buildings have OwnerId directly. Use DisplayAddress for address info, NOT Address.'
       },
       Sections: {
         description: 'Sections within complexes',
@@ -527,7 +532,30 @@ async function handleMetadataSummary(env) {
       },
       RealEstateObjects: {
         description: 'Base table for all property types (Buildings, Complexes, Units, Sections)',
-        note: 'Use specific tables like Units, Complexes, Buildings for typed access'
+        sortableFields: KNOWN_SORTABLE_FIELDS['RealEstateObjects'],
+        keyFields: ['RealEstateObjectId', 'Reference', 'DisplayName', 'DisplayAddress', 'CategoryName'],
+        note: 'Base table - use specific tables (Units, Buildings, Complexes) for OwnerId filtering. Address info is in DisplayAddress field.'
+      }
+    },
+    ownerWorkflows: {
+      description: 'Step-by-step workflows for owner-based queries',
+      'Mortgages by Owner': {
+        steps: [
+          '1. Query Owners with contains(DisplayName,"eigenaarsnaam") to get OwnerId',
+          '2. Query Units OR Buildings with OwnerId eq {id} to get RealEstateObjectId/RealEstateObjectName list ($top=200, $select=UnitId,RealEstateObjectId,DisplayName,DisplayAddress)',
+          '3. Query LedgerAccounts with contains(Name,"hypothe") OR contains(Name,"lening") to get ledger Codes',
+          '4. Query FinancialMutations with FinancialYear eq 2025 and LedgerAccountCode in discovered codes, $top=100, $select=RealEstateObjectName,Amount,RelationName,TransactionDate,Description',
+          '5. Match mutations to properties from step 2 by RealEstateObjectName'
+        ],
+        note: 'Do NOT loop per property! Fetch all in one query and match in-memory.'
+      },
+      'Properties by Owner': {
+        steps: [
+          '1. Query Owners to get OwnerId',
+          '2. Query Units with OwnerId eq {id}, $select=UnitId,DisplayName,DisplayAddress,ComplexName,OccupationPercentage',
+          '3. OR Query Buildings with OwnerId eq {id} for standalone buildings'
+        ],
+        note: 'Units and Buildings have OwnerId. Complexes/Sections do NOT have OwnerId directly.'
       }
     },
     commonJoins: {
