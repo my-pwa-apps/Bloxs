@@ -5,6 +5,18 @@ compatibility_date = "2024-01-01"
 [vars]
 BLOXS_BASE_URL = "https://stadsgezicht.bloxs.io"
 
+# Optional: schema-only learning (stores only field names per entity, never record values)
+# 1) Create a KV namespace, then
+# 2) Add a binding named LEARNING_KV, and
+# 3) Set ENABLE_LEARNING=true (or 1)
+#
+# [[kv_namespaces]]
+# binding = "LEARNING_KV"
+# id = "<your-kv-namespace-id>"
+# preview_id = "<your-kv-namespace-preview-id>"
+#
+# ENABLE_LEARNING = "true"
+
 # Secrets (set via `wrangler secret put`):
 # BLOXS_API_KEY - your Bloxs API key
 # BLOXS_API_SECRET - your Bloxs API secret

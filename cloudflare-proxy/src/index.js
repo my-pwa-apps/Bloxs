@@ -14,6 +14,21 @@
 let cachedToken = null;
 let tokenExpiry = 0;
 
+const ALLOWED_METHODS = new Set(['GET', 'OPTIONS']);
+
+// Backward-compatible entity casing fixes (path segment -> canonical segment)
+// Bloxs entity set names can be case-sensitive.
+const ENTITY_PATH_ALIASES = {
+  Owners: 'owners'
+};
+
+// Entity-specific query caps (lowercased entity name)
+const ENTITY_TOP_CAPS = {
+  financialmutations: 100
+};
+
+const LEARN_INDEX_KEY = 'learn:index:v1';
+
 // Known sortable fields per entity (fallback if metadata unavailable)
 const KNOWN_SORTABLE_FIELDS = {
   'ServiceTickets': ['ServiceTicketId', 'Reference', 'ReportingDate', 'ClosingDate', 'Priority', 'RealEstateObjectName', 'TenantName', 'SupplierName'],
@@ -52,6 +67,10 @@ const KNOWN_SORTABLE_FIELDS = {
   'default': ['Id', 'Reference', 'DisplayName', 'Name']
 };
 
+const KNOWN_SORTABLE_FIELDS_LOWER = Object.fromEntries(
+  Object.entries(KNOWN_SORTABLE_FIELDS).map(([key, value]) => [key.toLowerCase(), value])
+);
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -61,9 +80,8 @@ export default {
       return handleCORS();
     }
 
-    // Special endpoint: Get available entities and their fields
-    if (url.pathname === '/odatafeed/$metadata-summary') {
-      return handleMetadataSummary(env);
+    if (!ALLOWED_METHODS.has(request.method)) {
+      return methodNotAllowed();
     }
 
     // Validate the proxy API key
@@ -77,6 +95,18 @@ export default {
       return jsonError('Invalid API key', 401);
     }
 
+    // Special endpoint: Get available entities and their fields (auth-gated)
+    if (url.pathname === '/odatafeed/$metadata-summary') {
+      return handleMetadataSummary(env);
+    }
+
+    // Special endpoint: Inspect learned schema-only insights (auth-gated)
+    if (url.pathname === '/odatafeed/$learn-summary') {
+      return handleLearnSummary(url, env);
+    }
+
+    const normalizedPathname = normalizeODataPathname(url.pathname);
+
     // Get or refresh the Bloxs JWT token
     let token;
     try {
@@ -86,14 +116,14 @@ export default {
     }
 
     // Extract entity name from path for validation
-    const pathMatch = url.pathname.match(/\/odatafeed\/([^/?]+)/);
+    const pathMatch = normalizedPathname.match(/\/odatafeed\/([^/?]+)/);
     const entityName = pathMatch ? pathMatch[1] : null;
 
     // Validate and fix query parameters if needed
-    const fixedSearch = await validateAndFixQuery(url.search, entityName, env, token);
+    const fixedSearch = validateAndFixQuery(url.search, entityName);
     
     // Forward the request to Bloxs OData API
-    const bloxsUrl = `${env.BLOXS_BASE_URL}${url.pathname}${fixedSearch}`;
+    const bloxsUrl = `${env.BLOXS_BASE_URL}${normalizedPathname}${fixedSearch}`;
     
     try {
       const response = await fetch(bloxsUrl, {
@@ -110,6 +140,11 @@ export default {
       // If error, try to provide helpful information
       if (!response.ok) {
         return handleODataError(response.status, responseBody, entityName);
+      }
+
+      // Opportunistically learn schema (field names only). Never store record values.
+      if (ctx) {
+        ctx.waitUntil(maybeLearnFromOData(entityName, responseBody, env));
       }
 
       return new Response(responseBody, {
@@ -130,15 +165,30 @@ export default {
 /**
  * Validate and fix OData query parameters
  */
-async function validateAndFixQuery(search, entityName, env, token) {
+function validateAndFixQuery(search, entityName) {
   if (!search || !entityName) return search;
   
   const params = new URLSearchParams(search);
   const orderBy = params.get('$orderby');
+
+  // Enforce $top caps (especially for large tables like FinancialMutations)
+  const top = params.get('$top');
+  if (top != null) {
+    const parsedTop = Number.parseInt(top, 10);
+    if (Number.isNaN(parsedTop) || parsedTop <= 0) {
+      params.delete('$top');
+    } else {
+      const cap = getTopCap(entityName);
+      if (parsedTop > cap) {
+        params.set('$top', String(cap));
+      }
+    }
+  }
   
   // If there's an $orderby, validate the field exists
   if (orderBy) {
-    const knownFields = KNOWN_SORTABLE_FIELDS[entityName] || KNOWN_SORTABLE_FIELDS['default'];
+    const knownFields = getKnownSortableFields(entityName);
+    const fieldMap = buildCanonicalFieldMap(knownFields);
 
     // Support multi-field orderby: "Field1 desc, Field2 asc"
     const segments = orderBy
@@ -152,8 +202,9 @@ async function validateAndFixQuery(search, entityName, env, token) {
       const fieldName = (rawField || '').trim();
       const direction = (rawDirection || '').toLowerCase();
 
-      if (fieldName && knownFields.includes(fieldName)) {
-        normalizedSegments.push(direction === 'desc' ? `${fieldName} desc` : fieldName);
+      const canonical = fieldMap.get(fieldName.toLowerCase());
+      if (canonical) {
+        normalizedSegments.push(direction === 'desc' ? `${canonical} desc` : canonical);
       }
     }
 
@@ -180,17 +231,168 @@ async function validateAndFixQuery(search, entityName, env, token) {
   return newSearch ? '?' + newSearch : '';
 }
 
+function buildCanonicalFieldMap(fields) {
+  const map = new Map();
+  for (const field of fields || []) {
+    if (typeof field === 'string' && field.length > 0) {
+      map.set(field.toLowerCase(), field);
+    }
+  }
+  return map;
+}
+
 /**
  * Find a safe default field for ordering
  */
 function findSafeOrderByField(entityName) {
-  const knownFields = KNOWN_SORTABLE_FIELDS[entityName];
+  const knownFields = getKnownSortableFields(entityName);
   if (knownFields && knownFields.length > 0) {
     // Prefer Id or Reference fields for stable sorting
     const preferred = knownFields.find(f => f.endsWith('Id') || f === 'Reference');
     return preferred || knownFields[0];
   }
   return null;
+}
+
+function getKnownSortableFields(entityName) {
+  const key = (entityName || '').toLowerCase();
+  return KNOWN_SORTABLE_FIELDS_LOWER[key] || KNOWN_SORTABLE_FIELDS['default'];
+}
+
+function getTopCap(entityName) {
+  const key = (entityName || '').toLowerCase();
+  return ENTITY_TOP_CAPS[key] || 500;
+}
+
+function normalizeODataPathname(pathname) {
+  if (!pathname || !pathname.startsWith('/odatafeed/')) return pathname;
+  const rest = pathname.slice('/odatafeed/'.length);
+  const slashIndex = rest.indexOf('/');
+  const firstSegment = slashIndex === -1 ? rest : rest.slice(0, slashIndex);
+
+  // Don't rewrite special endpoints
+  if (firstSegment.startsWith('$')) return pathname;
+
+  const replacement = ENTITY_PATH_ALIASES[firstSegment];
+  if (!replacement) return pathname;
+  return `/odatafeed/${replacement}${slashIndex === -1 ? '' : rest.slice(slashIndex)}`;
+}
+
+function isLearningEnabled(env) {
+  const flag = String(env?.ENABLE_LEARNING ?? '').toLowerCase();
+  return flag === '1' || flag === 'true' || flag === 'yes';
+}
+
+async function maybeLearnFromOData(entityName, responseBody, env) {
+  try {
+    if (!isLearningEnabled(env)) return;
+    if (!env?.LEARNING_KV || typeof env.LEARNING_KV.get !== 'function') return;
+    if (!entityName || typeof responseBody !== 'string') return;
+
+    const parsed = JSON.parse(responseBody);
+    const values = Array.isArray(parsed?.value) ? parsed.value : null;
+    if (!values || values.length === 0) return;
+
+    // Sample a few rows to infer top-level field names.
+    const sampleCount = Math.min(values.length, 5);
+    const discovered = new Set();
+    for (let i = 0; i < sampleCount; i++) {
+      const row = values[i];
+      if (row && typeof row === 'object' && !Array.isArray(row)) {
+        for (const key of Object.keys(row)) {
+          if (key && !key.startsWith('@odata.')) {
+            discovered.add(key);
+          }
+        }
+      }
+    }
+
+    if (discovered.size === 0) return;
+
+    const entityKey = String(entityName).toLowerCase();
+    const kvKey = `learn:entity:${entityKey}`;
+    const now = Date.now();
+    const existing = await env.LEARNING_KV.get(kvKey, { type: 'json' });
+
+    const existingFields = new Set(Array.isArray(existing?.fields) ? existing.fields : []);
+    let hasNewFields = false;
+    for (const f of discovered) {
+      if (!existingFields.has(f)) {
+        existingFields.add(f);
+        hasNewFields = true;
+      }
+    }
+
+    const lastWriteMs = Number(existing?.lastWriteMs ?? 0);
+    const shouldRefresh = !Number.isFinite(lastWriteMs) || (now - lastWriteMs) > 24 * 60 * 60 * 1000;
+    if (!hasNewFields && !shouldRefresh) return;
+
+    const record = {
+      entity: entityName,
+      entityKey,
+      fields: Array.from(existingFields).sort(),
+      fieldCount: existingFields.size,
+      sampleCount,
+      lastSeen: new Date(now).toISOString(),
+      lastWriteMs: now
+    };
+
+    await env.LEARNING_KV.put(kvKey, JSON.stringify(record));
+
+    // Maintain a lightweight index so we can enumerate learned entities.
+    const index = await env.LEARNING_KV.get(LEARN_INDEX_KEY, { type: 'json' });
+    const items = Array.isArray(index?.entities) ? index.entities : [];
+    if (!items.includes(entityKey)) {
+      items.push(entityKey);
+      items.sort();
+      await env.LEARNING_KV.put(LEARN_INDEX_KEY, JSON.stringify({ entities: items, lastWriteMs: now }));
+    }
+  } catch {
+    // Never fail the request due to learning.
+  }
+}
+
+async function handleLearnSummary(url, env) {
+  if (!isLearningEnabled(env)) {
+    return jsonError('Learning is disabled. Set ENABLE_LEARNING=true and bind LEARNING_KV to enable.', 400);
+  }
+  if (!env?.LEARNING_KV || typeof env.LEARNING_KV.get !== 'function') {
+    return jsonError('Learning KV is not configured. Bind a KV namespace to LEARNING_KV.', 400);
+  }
+
+  const entity = url.searchParams.get('entity');
+  if (entity) {
+    const entityKey = entity.toLowerCase();
+    const kvKey = `learn:entity:${entityKey}`;
+    const record = await env.LEARNING_KV.get(kvKey, { type: 'json' });
+    return new Response(JSON.stringify({ record: record || null }, null, 2), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    });
+  }
+
+  const index = await env.LEARNING_KV.get(LEARN_INDEX_KEY, { type: 'json' });
+  const entities = Array.isArray(index?.entities) ? index.entities : [];
+  const records = await Promise.all(
+    entities.map(async (k) => env.LEARNING_KV.get(`learn:entity:${k}`, { type: 'json' }))
+  );
+
+  return new Response(
+    JSON.stringify(
+      {
+        learningEnabled: true,
+        entityCount: entities.length,
+        entities,
+        records: records.filter(Boolean)
+      },
+      null,
+      2
+    ),
+    {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    }
+  );
 }
 
 /**
@@ -224,7 +426,7 @@ function handleODataError(status, responseBody, entityName) {
   if (invalidField) {
     helpfulError.invalidField = invalidField;
     helpfulError.suggestion = `The field '${invalidField}' does not exist on ${entityName}.`;
-    helpfulError.availableFields = KNOWN_SORTABLE_FIELDS[entityName] || KNOWN_SORTABLE_FIELDS['default'];
+    helpfulError.availableFields = getKnownSortableFields(entityName);
   }
   
   return new Response(JSON.stringify(helpfulError, null, 2), {
@@ -778,13 +980,73 @@ async function getBloxsToken(env) {
 
   const data = await response.json();
   cachedToken = data.token;
-  
-  // Parse expiration date and convert to timestamp
-  // Bloxs returns format like "01/10/2026 16:42:26"
-  const expirationDate = new Date(data.expiration);
-  tokenExpiry = expirationDate.getTime();
+
+  // Prefer JWT exp (if token is a JWT); fallback to Bloxs expiration string.
+  const jwtExpiryMs = getJwtExpiryMs(cachedToken);
+  if (jwtExpiryMs) {
+    tokenExpiry = jwtExpiryMs;
+  } else {
+    const parsedExpiry = parseBloxsExpirationMs(data.expiration);
+    tokenExpiry = parsedExpiry || (now + 55 * 60 * 1000);
+  }
 
   return cachedToken;
+}
+
+function getJwtExpiryMs(token) {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const payloadJson = base64UrlDecodeToString(parts[1]);
+    const payload = JSON.parse(payloadJson);
+    if (typeof payload.exp === 'number' && Number.isFinite(payload.exp)) {
+      return payload.exp * 1000;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function base64UrlDecodeToString(value) {
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((value.length + 3) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
+function parseBloxsExpirationMs(expiration) {
+  if (!expiration || typeof expiration !== 'string') return null;
+  // Common observed format: "01/10/2026 16:42:26" (NL often DD/MM/YYYY)
+  // Try DD/MM/YYYY first; if that fails, try MM/DD/YYYY.
+  const match = expiration.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (!match) return null;
+
+  const a = Number.parseInt(match[1], 10);
+  const b = Number.parseInt(match[2], 10);
+  const year = Number.parseInt(match[3], 10);
+  const hour = Number.parseInt(match[4] ?? '0', 10);
+  const minute = Number.parseInt(match[5] ?? '0', 10);
+  const second = Number.parseInt(match[6] ?? '0', 10);
+
+  const ddFirst = toUtcMs(year, b, a, hour, minute, second);
+  if (ddFirst) return ddFirst;
+
+  const mmFirst = toUtcMs(year, a, b, hour, minute, second);
+  if (mmFirst) return mmFirst;
+
+  return null;
+}
+
+function toUtcMs(year, month, day, hour, minute, second) {
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const ms = Date.UTC(year, month - 1, day, hour || 0, minute || 0, second || 0);
+  return Number.isFinite(ms) ? ms : null;
 }
 
 /**
@@ -798,6 +1060,18 @@ function handleCORS() {
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Authorization, Content-Type',
       'Access-Control-Max-Age': '86400'
+    }
+  });
+}
+
+function methodNotAllowed() {
+  return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+    status: 405,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type'
     }
   });
 }

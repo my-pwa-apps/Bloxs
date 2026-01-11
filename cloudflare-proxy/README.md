@@ -87,3 +87,56 @@ Cloudflare Workers free tier includes:
 - 10ms CPU time per request
 
 This is more than enough for a Copilot agent.
+
+## Optional: "Self-learning" (schema-only) on Cloudflare KV
+
+The declarative agent itself does not have reliable long-term memory, but this Worker can *optionally* learn over time by storing **schema-only** observations from responses:
+- Which **field names** were seen per entity (e.g., `Units`, `SalesContracts`)
+- When an entity was last seen
+
+It **never stores record values** (so no tenant names, emails, amounts, etc.). This makes it safe to run and typically small enough for Cloudflare's free-tier KV usage.
+
+### Enable learning
+
+1) Create a KV namespace:
+
+```bash
+wrangler kv namespace create LEARNING_KV
+wrangler kv namespace create LEARNING_KV --preview
+```
+
+2) Add the IDs to `wrangler.toml` under `[[kv_namespaces]]` (see the commented block in `wrangler.toml`).
+
+3) Enable the feature flag:
+
+```bash
+wrangler secret put ENABLE_LEARNING
+# Enter: true
+```
+
+4) Deploy:
+
+```bash
+npm run deploy
+```
+
+### Inspect learned schema
+
+The Worker exposes an auth-gated endpoint:
+
+```bash
+curl -H "Authorization: Bearer <PROXY_API_KEY>" \
+  "https://<your-worker>.workers.dev/odatafeed/$learn-summary"
+```
+
+To view one entity:
+
+```bash
+curl -H "Authorization: Bearer <PROXY_API_KEY>" \
+  "https://<your-worker>.workers.dev/odatafeed/$learn-summary?entity=units"
+```
+
+### Notes on Cloudflare free plan
+
+- The Worker runtime is usually well within the free plan.
+- KV has its own quotas/limits (and a free allowance). This learning mode writes infrequently (only when new fields are discovered or at most once per day per entity), and stores tiny JSON documents.
