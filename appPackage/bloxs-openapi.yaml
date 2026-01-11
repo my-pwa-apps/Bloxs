@@ -1,211 +1,578 @@
 openapi: 3.0.3
 info:
-  title: Bloxs Real Estate OData API
+  title: Bloxs Real Estate API
   description: |
-    OData API for connecting to Bloxs real estate management software. 
+    API for connecting to Bloxs real estate management software. 
     Bloxs is a powerful real estate accounting platform for property management, 
     including relations, real estate objects, contracts, maintenance, and invoices.
     
     ## OData Query Support
-    This API supports standard OData query parameters:
-    - **$filter**: Filter results (e.g., `OccupationPercentage lt 1`, `ManagementState eq 'UnderManagement'`)
-    - **$select**: Select specific properties to return
-    - **$orderby**: Sort results by properties
+    This API supports OData query parameters for advanced filtering and data retrieval:
+    - **$filter**: Filter results using OData filter expressions (e.g., `status eq 'active'`, `rentAmount gt 1000`)
+    - **$select**: Select specific properties to return (e.g., `name,email,phone`)
+    - **$orderby**: Sort results by one or more properties (e.g., `name asc`, `createdAt desc`)
     - **$top**: Limit the number of results returned
     - **$skip**: Skip a number of results for pagination
     - **$count**: Include total count of matching results
-    - **$expand**: Expand related entities
+    - **$expand**: Expand related entities (e.g., `tenant`, `unit`, `building`)
+    - **$search**: Full-text search across searchable fields
     
     ## Read-Only Access
-    This API provides read-only access to Bloxs data.
+    This API provides read-only access to Bloxs data. All endpoints are GET operations for data retrieval.
   version: "1.0.0"
   contact:
     name: Bloxs Software Support
     email: support@bloxs.com
     url: https://www.bloxs.com
 servers:
-  - url: https://bloxsproxy.garfieldapp.workers.dev/odatafeed
-    description: Bloxs OData Proxy (via Cloudflare Worker)
+  - url: https://stadsgezicht.bloxs.io/odatafeed
+    description: Bloxs Stadsgezicht OData Feed API
 security:
   - bloxsApiKey: []
 paths:
   # ==================== RELATIONS ====================
-  /Relations:
+  /Relations/EstateAgents:
     get:
-      operationId: getRelations
-      summary: Get Relations
-      description: Retrieve all relations (tenants, contacts, counterparties)
+      operationId: getEstateAgents
+      summary: Get Estate Agents
+      description: Retrieve a list of estate agents including real estate brokers and rental agents
       tags:
         - Relations
       parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-        - $ref: '#/components/parameters/expand'
+        - name: search
+          in: query
+          description: Search term to filter estate agents by name or other attributes
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of results to return
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          description: Number of results to skip for pagination
+          schema:
+            type: integer
+            default: 0
       responses:
         '200':
-          description: OData response with list of relations
+          description: List of estate agents
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ODataResponse'
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EstateAgent'
+                  total:
+                    type: integer
 
-  /Persons:
+  /Relations/EstateAgents/{id}:
     get:
-      operationId: getPersons
-      summary: Get Persons
-      description: Retrieve all persons (individuals, contact persons)
+      operationId: getEstateAgentById
+      summary: Get Estate Agent by ID
+      description: Retrieve a specific estate agent by their unique identifier
       tags:
         - Relations
       parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-        - $ref: '#/components/parameters/expand'
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the estate agent
+          schema:
+            type: string
       responses:
         '200':
-          description: OData response with list of persons
+          description: Estate agent details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ODataResponse'
+                $ref: '#/components/schemas/EstateAgent'
+        '404':
+          description: Estate agent not found
 
-  /owners:
+  /Relations/Organisations:
+    get:
+      operationId: getOrganisations
+      summary: Get Organisations
+      description: Retrieve a list of organisations (tenants that are entities such as commercial real estate or partnerships)
+      tags:
+        - Relations
+      parameters:
+        - name: search
+          in: query
+          description: Search term to filter organisations by name
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of organisations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Organisation'
+                  total:
+                    type: integer
+
+  /Relations/Organisations/{id}:
+    get:
+      operationId: getOrganisationById
+      summary: Get Organisation by ID
+      description: Retrieve a specific organisation by its unique identifier
+      tags:
+        - Relations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Organisation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organisation'
+        '404':
+          description: Organisation not found
+
+  /Relations/Owners:
     get:
       operationId: getOwners
       summary: Get Owners
-      description: Retrieve all property owners. Each owner has their own financial administration.
+      description: Retrieve a list of real estate owners. Each owner has their own financial administration.
       tags:
         - Relations
       parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-        - $ref: '#/components/parameters/expand'
+        - name: search
+          in: query
+          description: Search term to filter owners by name
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
       responses:
         '200':
-          description: OData response with list of owners
+          description: List of owners
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ODataResponse'
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Owner'
+                  total:
+                    type: integer
+
+  /Relations/Owners/{id}:
+    get:
+      operationId: getOwnerById
+      summary: Get Owner by ID
+      description: Retrieve a specific owner by their unique identifier
+      tags:
+        - Relations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Owner details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Owner'
+        '404':
+          description: Owner not found
+
+  /Relations/Persons:
+    get:
+      operationId: getPersons
+      summary: Get Persons
+      description: Retrieve a list of persons (contact persons within organizations, employees, etc.)
+      tags:
+        - Relations
+      parameters:
+        - name: search
+          in: query
+          description: Search term to filter persons by name
+          schema:
+            type: string
+        - name: organisationId
+          in: query
+          description: Filter persons by organisation
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of persons
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Person'
+                  total:
+                    type: integer
+
+  /Relations/Persons/{id}:
+    get:
+      operationId: getPersonById
+      summary: Get Person by ID
+      description: Retrieve a specific person by their unique identifier
+      tags:
+        - Relations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Person details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
+        '404':
+          description: Person not found
+
+  /Relations/Suppliers:
+    get:
+      operationId: getSuppliers
+      summary: Get Suppliers
+      description: Retrieve a list of suppliers (entities from which you receive invoices, e.g., cleaning companies, tax authorities)
+      tags:
+        - Relations
+      parameters:
+        - name: search
+          in: query
+          description: Search term to filter suppliers by name
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of suppliers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Supplier'
+                  total:
+                    type: integer
+
+  /Relations/Suppliers/{id}:
+    get:
+      operationId: getSupplierById
+      summary: Get Supplier by ID
+      description: Retrieve a specific supplier by their unique identifier
+      tags:
+        - Relations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Supplier details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+        '404':
+          description: Supplier not found
 
   # ==================== REAL ESTATE OBJECTS ====================
-  /RealEstateObjects:
-    get:
-      operationId: getRealEstateObjects
-      summary: Get Real Estate Objects
-      description: Retrieve all real estate objects (buildings, complexes, units)
-      tags:
-        - RealEstateObjects
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-        - $ref: '#/components/parameters/expand'
-      responses:
-        '200':
-          description: OData response with list of real estate objects
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /Buildings:
+  /RealEstateObjects/Buildings:
     get:
       operationId: getBuildings
       summary: Get Buildings
-      description: Retrieve all buildings (standalone properties)
+      description: Retrieve a list of buildings. A building is a standalone entity, a row house or entire building that is not divided into multiple parts.
       tags:
         - RealEstateObjects
       parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-        - $ref: '#/components/parameters/expand'
+        - name: search
+          in: query
+          description: Search term to filter buildings by name or address
+          schema:
+            type: string
+        - name: ownerId
+          in: query
+          description: Filter buildings by owner
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
       responses:
         '200':
-          description: OData response with list of buildings
+          description: List of buildings
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ODataResponse'
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Building'
+                  total:
+                    type: integer
 
-  /Complexes:
+  /RealEstateObjects/Buildings/{id}:
+    get:
+      operationId: getBuildingById
+      summary: Get Building by ID
+      description: Retrieve a specific building by its unique identifier
+      tags:
+        - RealEstateObjects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Building details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Building'
+        '404':
+          description: Building not found
+
+  /RealEstateObjects/Complexes:
     get:
       operationId: getComplexes
       summary: Get Complexes
-      description: Retrieve all complexes (collections of rental units under one roof)
+      description: Retrieve a list of complexes. A complex is a collection of rentable units, often under one roof.
       tags:
         - RealEstateObjects
       parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-        - $ref: '#/components/parameters/expand'
+        - name: search
+          in: query
+          description: Search term to filter complexes by name or address
+          schema:
+            type: string
+        - name: ownerId
+          in: query
+          description: Filter complexes by owner
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
       responses:
         '200':
-          description: OData response with list of complexes
+          description: List of complexes
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ODataResponse'
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Complex'
+                  total:
+                    type: integer
 
-  /Sections:
+  /RealEstateObjects/Complexes/{id}:
+    get:
+      operationId: getComplexById
+      summary: Get Complex by ID
+      description: Retrieve a specific complex by its unique identifier
+      tags:
+        - RealEstateObjects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Complex details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Complex'
+        '404':
+          description: Complex not found
+
+  /RealEstateObjects/Sections:
     get:
       operationId: getSections
       summary: Get Sections
-      description: Retrieve all sections (parts of buildings for cost allocation)
+      description: Retrieve a list of sections. Sections are parts of a building, useful for service cost allocation.
       tags:
         - RealEstateObjects
       parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-        - $ref: '#/components/parameters/expand'
+        - name: complexId
+          in: query
+          description: Filter sections by complex
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
       responses:
         '200':
-          description: OData response with list of sections
+          description: List of sections
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ODataResponse'
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Section'
+                  total:
+                    type: integer
 
-  /Units:
+  /RealEstateObjects/Sections/{id}:
+    get:
+      operationId: getSectionById
+      summary: Get Section by ID
+      description: Retrieve a specific section by its unique identifier
+      tags:
+        - RealEstateObjects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Section details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Section'
+        '404':
+          description: Section not found
+
+  /RealEstateObjects/Units:
     get:
       operationId: getUnits
       summary: Get Units
       description: |
-        Retrieve all rental units (apartments, offices, retail spaces).
+        Retrieve a list of rental units. A unit can be included in a rental contract and is part of a complex or building section.
         
-        Example filters:
-        - `$filter=OccupationPercentage lt 1` - Find vacant units
-        - `$filter=CategoryName eq 'Winkelruimte'` - Find retail spaces
-        - `$top=10&$orderby=DisplayName` - Get first 10 units sorted by name
+        Supports OData query parameters for advanced filtering:
+        - $filter: Filter by properties (e.g., `isVacant eq true`, `rentAmount gt 1000`, `unitType eq 'apartment'`)
+        - $select: Choose specific fields to return
+        - $orderby: Sort results (e.g., `rentAmount desc`, `address asc`)
+        - $expand: Include related data (e.g., `currentTenant`, `building`, `contracts`)
       tags:
         - RealEstateObjects
       parameters:
+        - name: search
+          in: query
+          description: Search term to filter units by name or address
+          schema:
+            type: string
+        - name: complexId
+          in: query
+          description: Filter units by complex
+          schema:
+            type: string
+        - name: sectionId
+          in: query
+          description: Filter units by section
+          schema:
+            type: string
+        - name: isVacant
+          in: query
+          description: Filter for vacant units only
+          schema:
+            type: boolean
         - $ref: '#/components/parameters/filter'
         - $ref: '#/components/parameters/select'
         - $ref: '#/components/parameters/orderby'
@@ -215,44 +582,80 @@ paths:
         - $ref: '#/components/parameters/expand'
       responses:
         '200':
-          description: OData response with list of units
+          description: List of units
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UnitsResponse'
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Unit'
+                  total:
+                    type: integer
+
+  /RealEstateObjects/Units/{id}:
+    get:
+      operationId: getUnitById
+      summary: Get Unit by ID
+      description: Retrieve a specific unit by its unique identifier
+      tags:
+        - RealEstateObjects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Unit details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Unit'
+        '404':
+          description: Unit not found
 
   # ==================== CONTRACTS ====================
-  /SalesContracts:
-    get:
-      operationId: getSalesContracts
-      summary: Get Sales Contracts
-      description: Retrieve all sales (rent) contracts
-      tags:
-        - Contracts
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-        - $ref: '#/components/parameters/expand'
-      responses:
-        '200':
-          description: OData response with list of sales contracts
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /CommercialRentSalesContracts:
+  /Contracts/CommercialRent:
     get:
       operationId: getCommercialRentContracts
       summary: Get Commercial Rent Contracts
-      description: Retrieve commercial rent contracts (offices, stores, commercial spaces)
+      description: |
+        Retrieve commercial rent contracts for stores, offices, and commercial spaces.
+        
+        Supports OData query parameters for advanced filtering:
+        - $filter: Filter by properties (e.g., `status eq 'active'`, `monthlyRent gt 5000`, `endDate lt 2025-06-01`)
+        - $select: Choose specific fields to return
+        - $orderby: Sort results (e.g., `endDate asc` for contracts expiring soonest)
+        - $expand: Include related data (e.g., `tenant`, `unit`, `building`)
       tags:
         - Contracts
       parameters:
+        - name: tenantId
+          in: query
+          description: Filter by tenant ID
+          schema:
+            type: string
+        - name: unitId
+          in: query
+          description: Filter by unit ID
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by contract status
+          schema:
+            type: string
+            enum: [active, expired, terminated, concept]
+        - name: expiringBefore
+          in: query
+          description: Filter contracts expiring before this date (ISO 8601)
+          schema:
+            type: string
+            format: date
         - $ref: '#/components/parameters/filter'
         - $ref: '#/components/parameters/select'
         - $ref: '#/components/parameters/orderby'
@@ -262,43 +665,79 @@ paths:
         - $ref: '#/components/parameters/expand'
       responses:
         '200':
-          description: OData response with list of commercial rent contracts
+          description: List of commercial rent contracts
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ODataResponse'
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CommercialRentContract'
+                  total:
+                    type: integer
 
-  /PurchaseContracts:
+  /Contracts/CommercialRent/{id}:
     get:
-      operationId: getPurchaseContracts
-      summary: Get Purchase Contracts
-      description: Retrieve purchase (supplier) contracts
+      operationId: getCommercialRentContractById
+      summary: Get Commercial Rent Contract by ID
+      description: Retrieve a specific commercial rent contract by its unique identifier
       tags:
         - Contracts
       parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-        - $ref: '#/components/parameters/expand'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         '200':
-          description: OData response with list of purchase contracts
+          description: Commercial rent contract details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ODataResponse'
+                $ref: '#/components/schemas/CommercialRentContract'
+        '404':
+          description: Contract not found
 
-  /SalesContractLineItems:
+  /Contracts/PrivateRent:
     get:
-      operationId: getSalesContractLineItems
-      summary: Get Sales Contract Line Items
-      description: Retrieve line items from sales contracts (rent components, service costs)
+      operationId: getPrivateRentContracts
+      summary: Get Private Rent Contracts
+      description: |
+        Retrieve private rent contracts for residential real estate.
+        
+        Supports OData query parameters for advanced filtering:
+        - $filter: Filter by properties (e.g., `status eq 'active'`, `monthlyRent gt 1500`)
+        - $select: Choose specific fields to return
+        - $orderby: Sort results (e.g., `endDate asc` for contracts expiring soonest)
+        - $expand: Include related data (e.g., `tenant`, `unit`)
       tags:
         - Contracts
       parameters:
+        - name: tenantId
+          in: query
+          description: Filter by tenant ID
+          schema:
+            type: string
+        - name: unitId
+          in: query
+          description: Filter by unit ID
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by contract status
+          schema:
+            type: string
+            enum: [active, expired, terminated, concept]
+        - name: expiringBefore
+          in: query
+          description: Filter contracts expiring before this date (ISO 8601)
+          schema:
+            type: string
+            format: date
         - $ref: '#/components/parameters/filter'
         - $ref: '#/components/parameters/select'
         - $ref: '#/components/parameters/orderby'
@@ -308,26 +747,129 @@ paths:
         - $ref: '#/components/parameters/expand'
       responses:
         '200':
-          description: OData response with list of contract line items
+          description: List of private rent contracts
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ODataResponse'
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PrivateRentContract'
+                  total:
+                    type: integer
+
+  /Contracts/PrivateRent/{id}:
+    get:
+      operationId: getPrivateRentContractById
+      summary: Get Private Rent Contract by ID
+      description: Retrieve a specific private rent contract by its unique identifier
+      tags:
+        - Contracts
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Private rent contract details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivateRentContract'
+        '404':
+          description: Contract not found
+
+  /Contracts/Supplier:
+    get:
+      operationId: getSupplierContracts
+      summary: Get Supplier Contracts
+      description: Retrieve supplier contracts for maintenance, services, etc.
+      tags:
+        - Contracts
+      parameters:
+        - name: supplierId
+          in: query
+          description: Filter by supplier ID
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by contract status
+          schema:
+            type: string
+            enum: [active, expired, terminated]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of supplier contracts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SupplierContract'
+                  total:
+                    type: integer
 
   # ==================== MAINTENANCE ====================
-  /ServiceTickets:
+  /Maintenance/ServiceTickets:
     get:
       operationId: getServiceTickets
       summary: Get Service Tickets
       description: |
-        Retrieve maintenance service tickets (read-only).
+        Retrieve maintenance service tickets for repairs and maintenance requests (read-only).
         
-        Example filters:
-        - `$filter=State eq 'Open'` - Find open tickets
-        - `$orderby=CreatedDate desc` - Sort by creation date
+        Supports OData query parameters for advanced filtering:
+        - $filter: Filter by properties (e.g., `status eq 'open'`, `priority eq 'urgent'`, `createdAt gt 2024-01-01`)
+        - $select: Choose specific fields to return
+        - $orderby: Sort results (e.g., `priority desc, createdAt asc` for urgent tickets first)
+        - $expand: Include related data (e.g., `unit`, `building`, `reportedBy`, `assignedSupplier`)
       tags:
         - Maintenance
       parameters:
+        - name: unitId
+          in: query
+          description: Filter by unit ID
+          schema:
+            type: string
+        - name: buildingId
+          in: query
+          description: Filter by building ID
+          schema:
+            type: string
+        - name: complexId
+          in: query
+          description: Filter by complex ID
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by ticket status
+          schema:
+            type: string
+            enum: [open, in_progress, completed, cancelled]
+        - name: priority
+          in: query
+          description: Filter by priority
+          schema:
+            type: string
+            enum: [low, medium, high, urgent]
         - $ref: '#/components/parameters/filter'
         - $ref: '#/components/parameters/select'
         - $ref: '#/components/parameters/orderby'
@@ -335,109 +877,78 @@ paths:
         - $ref: '#/components/parameters/skip'
         - $ref: '#/components/parameters/count'
         - $ref: '#/components/parameters/expand'
+        - $ref: '#/components/parameters/search'
       responses:
         '200':
-          description: OData response with list of service tickets
+          description: List of service tickets
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ODataResponse'
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ServiceTicket'
+                  total:
+                    type: integer
 
-  /ServiceTicketStates:
+  /Maintenance/ServiceTickets/{id}:
     get:
-      operationId: getServiceTicketStates
-      summary: Get Service Ticket States
-      description: Retrieve available service ticket states
+      operationId: getServiceTicketById
+      summary: Get Service Ticket by ID
+      description: Retrieve a specific service ticket by its unique identifier
       tags:
         - Maintenance
       parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         '200':
-          description: OData response with list of states
+          description: Service ticket details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ODataResponse'
+                $ref: '#/components/schemas/ServiceTicket'
+        '404':
+          description: Service ticket not found
 
-  /ServiceTicketProblemCategories:
-    get:
-      operationId: getServiceTicketProblemCategories
-      summary: Get Service Ticket Problem Categories
-      description: Retrieve problem categories for service tickets
-      tags:
-        - Maintenance
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-      responses:
-        '200':
-          description: OData response with list of problem categories
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  # ==================== INVOICES & FINANCE ====================
-  /SalesInvoices:
-    get:
-      operationId: getSalesInvoices
-      summary: Get Sales Invoices
-      description: Retrieve sales invoices (rent invoices sent to tenants)
-      tags:
-        - Finance
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-        - $ref: '#/components/parameters/expand'
-      responses:
-        '200':
-          description: OData response with list of sales invoices
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /PurchaseInvoices:
-    get:
-      operationId: getPurchaseInvoices
-      summary: Get Purchase Invoices
-      description: Retrieve purchase invoices (invoices from suppliers)
-      tags:
-        - Finance
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-        - $ref: '#/components/parameters/expand'
-      responses:
-        '200':
-          description: OData response with list of purchase invoices
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /Journals:
+  # ==================== INVOICES ====================
+  /Invoices/Journals:
     get:
       operationId: getJournals
       summary: Get Journals
-      description: Retrieve financial journals
+      description: |
+        Retrieve invoice journals for financial tracking and analysis.
+        
+        Supports OData query parameters for advanced filtering:
+        - $filter: Filter by properties (e.g., `amount gt 1000`, `journalType eq 'income'`)
+        - $select: Choose specific fields to return
+        - $orderby: Sort results (e.g., `date desc`, `amount desc`)
+        - $expand: Include related data (e.g., `owner`, `unit`, `tenant`)
       tags:
-        - Finance
+        - Invoices
       parameters:
+        - name: ownerId
+          in: query
+          description: Filter by owner ID
+          schema:
+            type: string
+        - name: fromDate
+          in: query
+          description: Filter journals from this date (ISO 8601)
+          schema:
+            type: string
+            format: date
+        - name: toDate
+          in: query
+          description: Filter journals until this date (ISO 8601)
+          schema:
+            type: string
+            format: date
         - $ref: '#/components/parameters/filter'
         - $ref: '#/components/parameters/select'
         - $ref: '#/components/parameters/orderby'
@@ -447,1102 +958,703 @@ paths:
         - $ref: '#/components/parameters/expand'
       responses:
         '200':
-          description: OData response with list of journals
+          description: List of journals
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ODataResponse'
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Journal'
+                  total:
+                    type: integer
 
-  /JournalPostTransactions:
+  /Invoices/Journals/{id}:
     get:
-      operationId: getJournalPostTransactions
-      summary: Get Journal Post Transactions
-      description: Retrieve journal posting transactions
+      operationId: getJournalById
+      summary: Get Journal by ID
+      description: Retrieve a specific journal by its unique identifier
       tags:
-        - Finance
+        - Invoices
       parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-        - $ref: '#/components/parameters/expand'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         '200':
-          description: OData response with list of transactions
+          description: Journal details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /LedgerAccounts:
-    get:
-      operationId: getLedgerAccounts
-      summary: Get Ledger Accounts
-      description: Retrieve chart of accounts (ledger accounts)
-      tags:
-        - Finance
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with list of ledger accounts
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /OpenPositionDebtors:
-    get:
-      operationId: getOpenPositionDebtors
-      summary: Get Open Debtor Positions
-      description: Retrieve open positions for debtors (outstanding receivables)
-      tags:
-        - Finance
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-        - $ref: '#/components/parameters/expand'
-      responses:
-        '200':
-          description: OData response with open debtor positions
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /OpenPositionCreditors:
-    get:
-      operationId: getOpenPositionCreditors
-      summary: Get Open Creditor Positions
-      description: Retrieve open positions for creditors (outstanding payables)
-      tags:
-        - Finance
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-        - $ref: '#/components/parameters/expand'
-      responses:
-        '200':
-          description: OData response with open creditor positions
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  # ==================== ADDRESSES ====================
-  /Addresses:
-    get:
-      operationId: getAddresses
-      summary: Get Addresses
-      description: Retrieve all addresses
-      tags:
-        - Common
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with list of addresses
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  # ==================== NOTES & TASKS ====================
-  /Notes:
-    get:
-      operationId: getNotes
-      summary: Get Notes
-      description: Retrieve notes attached to entities (persons, organisations, properties). Use EntityLinkType and EntityId to filter.
-      tags:
-        - Notes
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with notes
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /Tasks:
-    get:
-      operationId: getTasks
-      summary: Get Tasks
-      description: Retrieve all tasks
-      tags:
-        - Notes
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with tasks
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  # ==================== RELATION DETAILS ====================
-  /RelationContactPersons:
-    get:
-      operationId: getRelationContactPersons
-      summary: Get Relation Contact Persons
-      description: Retrieve contact persons linked to relations
-      tags:
-        - Relations
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with contact persons
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /RelationCommunicationForms:
-    get:
-      operationId: getRelationCommunicationForms
-      summary: Get Relation Communication Forms
-      description: Retrieve communication methods (email, phone) for relations
-      tags:
-        - Relations
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with communication forms
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /OwnerBankAccounts:
-    get:
-      operationId: getOwnerBankAccounts
-      summary: Get Owner Bank Accounts
-      description: Retrieve bank accounts for property owners
-      tags:
-        - Relations
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with bank accounts
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /SupplierTypes:
-    get:
-      operationId: getSupplierTypes
-      summary: Get Supplier Types
-      description: Retrieve supplier type categories
-      tags:
-        - Relations
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with supplier types
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  # ==================== REAL ESTATE DETAILS ====================
-  /PropertyValuationValues:
-    get:
-      operationId: getPropertyValuationValues
-      summary: Get Property Valuation Values
-      description: Retrieve property valuations (WOZ values, market values)
-      tags:
-        - RealEstate
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with valuations
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /PropertyValuationTypes:
-    get:
-      operationId: getPropertyValuationTypes
-      summary: Get Property Valuation Types
-      description: Retrieve valuation type definitions
-      tags:
-        - RealEstate
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with valuation types
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /TheoreticalRentItems:
-    get:
-      operationId: getTheoreticalRentItems
-      summary: Get Theoretical Rent Items
-      description: Retrieve theoretical rent amounts for properties
-      tags:
-        - RealEstate
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with theoretical rent items
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /Meters:
-    get:
-      operationId: getMeters
-      summary: Get Meters
-      description: Retrieve utility meters (gas, electricity, water)
-      tags:
-        - RealEstate
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with meters
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /MeterReadings:
-    get:
-      operationId: getMeterReadings
-      summary: Get Meter Readings
-      description: Retrieve meter reading history
-      tags:
-        - RealEstate
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with meter readings
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /Installations:
-    get:
-      operationId: getInstallations
-      summary: Get Installations
-      description: Retrieve installations in properties (HVAC, elevators, etc.)
-      tags:
-        - RealEstate
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with installations
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /InstallationTypes:
-    get:
-      operationId: getInstallationTypes
-      summary: Get Installation Types
-      description: Retrieve installation type definitions
-      tags:
-        - RealEstate
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with installation types
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /Projects:
-    get:
-      operationId: getProjects
-      summary: Get Projects
-      description: Retrieve projects (renovation, development projects)
-      tags:
-        - RealEstate
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with projects
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /TeamMembers:
-    get:
-      operationId: getTeamMembers
-      summary: Get Team Members
-      description: Retrieve team members assigned to properties
-      tags:
-        - RealEstate
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with team members
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  # ==================== CONTRACT DETAILS ====================
-  /SalesContractLine:
-    get:
-      operationId: getSalesContractLines
-      summary: Get Sales Contract Lines
-      description: Retrieve contract line details
-      tags:
-        - Contracts
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with contract lines
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /SalesContractRealestateObjects:
-    get:
-      operationId: getSalesContractRealestateObjects
-      summary: Get Sales Contract Real Estate Objects
-      description: Retrieve real estate objects linked to sales contracts
-      tags:
-        - Contracts
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with contract properties
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /SalesContractExtensionPeriods:
-    get:
-      operationId: getSalesContractExtensionPeriods
-      summary: Get Sales Contract Extension Periods
-      description: Retrieve contract extension period options
-      tags:
-        - Contracts
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with extension periods
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /IndexationMethods:
-    get:
-      operationId: getIndexationMethods
-      summary: Get Indexation Methods
-      description: Retrieve rent indexation methods
-      tags:
-        - Contracts
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with indexation methods
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /IndexationSeries:
-    get:
-      operationId: getIndexationSeries
-      summary: Get Indexation Series
-      description: Retrieve indexation series (CPI, etc.)
-      tags:
-        - Contracts
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with indexation series
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /IndexationSeriesValues:
-    get:
-      operationId: getIndexationSeriesValues
-      summary: Get Indexation Series Values
-      description: Retrieve historical indexation values
-      tags:
-        - Contracts
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with indexation values
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /FinancingContracts:
-    get:
-      operationId: getFinancingContracts
-      summary: Get Financing Contracts
-      description: Retrieve financing/loan contracts
-      tags:
-        - Contracts
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with financing contracts
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /PurchaseContractLines:
-    get:
-      operationId: getPurchaseContractLines
-      summary: Get Purchase Contract Lines
-      description: Retrieve purchase contract line items
-      tags:
-        - Contracts
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with contract lines
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  # ==================== MAINTENANCE DETAILS ====================
-  /ServiceTicketCostCategories:
-    get:
-      operationId: getServiceTicketCostCategories
-      summary: Get Service Ticket Cost Categories
-      description: Retrieve cost categories for maintenance tickets
-      tags:
-        - Maintenance
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with cost categories
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  # ==================== INVOICE DETAILS ====================
-  /SalesInvoiceLines:
-    get:
-      operationId: getSalesInvoiceLines
-      summary: Get Sales Invoice Lines
-      description: Retrieve line items from sales invoices
-      tags:
-        - Finance
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with invoice lines
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /PurchaseInvoiceLines:
-    get:
-      operationId: getPurchaseInvoiceLines
-      summary: Get Purchase Invoice Lines
-      description: Retrieve line items from purchase invoices
-      tags:
-        - Finance
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with invoice lines
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /BankAccounts:
-    get:
-      operationId: getBankAccounts
-      summary: Get Bank Accounts
-      description: Retrieve bank accounts
-      tags:
-        - Finance
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with bank accounts
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /Budgets:
-    get:
-      operationId: getBudgets
-      summary: Get Budgets
-      description: Retrieve budgets
-      tags:
-        - Finance
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with budgets
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /FinancialMutations:
-    get:
-      operationId: getFinancialMutations
-      summary: Get Financial Mutations
-      description: Retrieve financial mutations/transactions
-      tags:
-        - Finance
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with mutations
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /TaxRates:
-    get:
-      operationId: getTaxRates
-      summary: Get Tax Rates
-      description: Retrieve tax rate definitions (VAT rates)
-      tags:
-        - Finance
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with tax rates
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /OwnerSettlements:
-    get:
-      operationId: getOwnerSettlements
-      summary: Get Owner Settlements
-      description: Retrieve owner settlements (periodic financial settlements with property owners)
-      tags:
-        - Finance
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with settlements
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  # ==================== PURCHASE ORDERS ====================
-  /PurchaseOrders:
-    get:
-      operationId: getPurchaseOrders
-      summary: Get Purchase Orders
-      description: Retrieve purchase orders
-      tags:
-        - Purchasing
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with purchase orders
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /PurchaseOrderLines:
-    get:
-      operationId: getPurchaseOrderLines
-      summary: Get Purchase Order Lines
-      description: Retrieve purchase order line items
-      tags:
-        - Purchasing
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with order lines
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /PurchaseCommitments:
-    get:
-      operationId: getPurchaseCommitments
-      summary: Get Purchase Commitments
-      description: Retrieve purchase commitments
-      tags:
-        - Purchasing
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with commitments
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  # ==================== WORK REGISTRATION ====================
-  /WorkRegistrations:
-    get:
-      operationId: getWorkRegistrations
-      summary: Get Work Registrations
-      description: Retrieve work/time registrations
-      tags:
-        - Work
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with work registrations
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  # ==================== COMMERCIAL OVERVIEW ====================
-  /CommercialOverview:
-    get:
-      operationId: getCommercialOverview
-      summary: Get Commercial Overview
-      description: Retrieve commercial portfolio overview
-      tags:
-        - Reports
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with commercial overview
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
-
-  /ControlList:
-    get:
-      operationId: getControlList
-      summary: Get Control List
-      description: Retrieve control list items for auditing
-      tags:
-        - Reports
-      parameters:
-        - $ref: '#/components/parameters/filter'
-        - $ref: '#/components/parameters/select'
-        - $ref: '#/components/parameters/orderby'
-        - $ref: '#/components/parameters/top'
-        - $ref: '#/components/parameters/skip'
-        - $ref: '#/components/parameters/count'
-      responses:
-        '200':
-          description: OData response with control list
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ODataResponse'
+                $ref: '#/components/schemas/Journal'
+        '404':
+          description: Journal not found
 
 components:
   securitySchemes:
     bloxsApiKey:
       type: http
       scheme: bearer
-      description: Bearer token for API authentication (JWT token obtained from Authorization endpoint)
+      description: Bearer token for API authentication
 
   parameters:
+    # OData Query Parameters
     filter:
       name: $filter
       in: query
       description: |
-        OData filter expression. Examples:
-        - `OccupationPercentage lt 1` - Vacant units
-        - `CategoryName eq 'Winkelruimte'` - Filter by category
-        - `Owner eq 'Roks en Wals'` - Filter by owner name
+        OData filter expression to filter results. Examples:
+        - `status eq 'active'` - Filter by exact value
+        - `rentAmount gt 1000` - Greater than comparison
+        - `startDate ge 2024-01-01` - Greater than or equal
+        - `name contains 'Amsterdam'` - Contains text
+        - `status eq 'active' and rentAmount gt 1000` - Multiple conditions with AND
+        - `status eq 'open' or status eq 'in_progress'` - Multiple conditions with OR
       schema:
         type: string
     select:
       name: $select
       in: query
-      description: Comma-separated list of properties to include
+      description: |
+        Comma-separated list of properties to include in the response. 
+        Example: `id,name,email,phone` to return only these fields.
       schema:
         type: string
     orderby:
       name: $orderby
       in: query
-      description: Sort by properties (e.g., `DisplayName asc`, `RentAmount desc`)
+      description: |
+        Sort results by one or more properties. Examples:
+        - `name asc` - Sort by name ascending
+        - `createdAt desc` - Sort by creation date descending
+        - `status asc, rentAmount desc` - Multiple sort criteria
       schema:
         type: string
     top:
       name: $top
       in: query
-      description: Maximum number of results to return
+      description: Maximum number of results to return. Use with $skip for pagination.
       schema:
         type: integer
         minimum: 1
         maximum: 500
+        default: 50
     skip:
       name: $skip
       in: query
-      description: Number of results to skip for pagination
+      description: Number of results to skip. Use with $top for pagination.
       schema:
         type: integer
         minimum: 0
+        default: 0
     count:
       name: $count
       in: query
-      description: Include total count in response
+      description: Include total count of matching results in response. Set to true to enable.
       schema:
         type: boolean
+        default: false
     expand:
       name: $expand
       in: query
-      description: Expand related entities
+      description: |
+        Expand related entities in the response. Examples:
+        - `tenant` - Include tenant details
+        - `unit` - Include unit details
+        - `building,owner` - Include multiple related entities
+      schema:
+        type: string
+    search:
+      name: $search
+      in: query
+      description: "Full-text search across searchable fields. Example: Amsterdam office"
       schema:
         type: string
 
   schemas:
-    ODataResponse:
+    # Relations Schemas
+    EstateAgent:
       type: object
       properties:
-        "@odata.context":
+        id:
           type: string
-          description: OData metadata context URL
-        "@odata.count":
-          type: integer
-          description: Total count of matching results (when $count=true)
-        value:
-          type: array
-          items:
-            type: object
-          description: Array of result entities
+          description: Unique identifier
+        name:
+          type: string
+          description: Name of the estate agent
+        companyName:
+          type: string
+          description: Company name
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        address:
+          $ref: '#/components/schemas/Address'
+        licenseNumber:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
 
-    UnitsResponse:
+    Organisation:
       type: object
       properties:
-        "@odata.context":
+        id:
           type: string
-        "@odata.count":
-          type: integer
-        value:
+        name:
+          type: string
+          description: Organisation name
+        legalName:
+          type: string
+        chamberOfCommerceNumber:
+          type: string
+          description: KvK number (Dutch Chamber of Commerce)
+        vatNumber:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        address:
+          $ref: '#/components/schemas/Address'
+        contactPersons:
           type: array
           items:
-            $ref: '#/components/schemas/Unit'
+            $ref: '#/components/schemas/Person'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Owner:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [individual, company, foundation]
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        address:
+          $ref: '#/components/schemas/Address'
+        financialAdministrationId:
+          type: string
+          description: Reference to the owner's financial administration
+        bankAccount:
+          type: string
+          description: IBAN
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Person:
+      type: object
+      properties:
+        id:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        mobilePhone:
+          type: string
+        organisationId:
+          type: string
+        role:
+          type: string
+          description: Role within the organisation
+        address:
+          $ref: '#/components/schemas/Address'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Supplier:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+          description: Type of supplier (cleaning, maintenance, utilities, etc.)
+        chamberOfCommerceNumber:
+          type: string
+        vatNumber:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        address:
+          $ref: '#/components/schemas/Address'
+        bankAccount:
+          type: string
+        paymentTermDays:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # Real Estate Objects Schemas
+    Building:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        address:
+          $ref: '#/components/schemas/Address'
+        ownerId:
+          type: string
+        type:
+          type: string
+          description: Building type (residential, commercial, mixed)
+        constructionYear:
+          type: integer
+        totalArea:
+          type: number
+          description: Total area in square meters
+        energyLabel:
+          type: string
+        status:
+          type: string
+          enum: [available, rented, maintenance, sold]
+        currentRentAmount:
+          type: number
+          description: Current monthly rent in EUR
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Complex:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        address:
+          $ref: '#/components/schemas/Address'
+        ownerId:
+          type: string
+        totalUnits:
+          type: integer
+        vacantUnits:
+          type: integer
+        totalArea:
+          type: number
+        constructionYear:
+          type: integer
+        hasElevator:
+          type: boolean
+        parkingSpaces:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Section:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        complexId:
+          type: string
+        floor:
+          type: integer
+        type:
+          type: string
+          description: Section type (residential, commercial)
+        totalUnits:
+          type: integer
+        serviceCostAllocation:
+          type: string
+          description: How service costs are allocated for this section
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
 
     Unit:
       type: object
       properties:
-        UnitId:
+        id:
+          type: string
+        name:
+          type: string
+        address:
+          $ref: '#/components/schemas/Address'
+        complexId:
+          type: string
+        sectionId:
+          type: string
+        floor:
           type: integer
-        ComplexId:
-          type: integer
-        ComplexName:
+        unitNumber:
           type: string
-        SectionId:
-          type: integer
-          nullable: true
-        SectionName:
+        type:
           type: string
-        RealEstateObjectId:
-          type: integer
-        Reference:
-          type: string
-        DisplayName:
-          type: string
-        Name:
-          type: string
-          nullable: true
-        DisplayAddress:
-          type: string
-        CategoryId:
-          type: integer
-        CategoryName:
-          type: string
-        OwnerId:
-          type: integer
-        Owner:
-          type: string
-        RawFloorArea:
+          enum: [apartment, room, office, retail, warehouse, parking]
+        area:
           type: number
-          nullable: true
-        RentableFloorArea:
-          type: number
-          nullable: true
-        NumberOfManagedRentableObjects:
+          description: Area in square meters
+        numberOfRooms:
           type: integer
-        NumberOfRentedObjects:
-          type: integer
-        OccupationPercentage:
+        isVacant:
+          type: boolean
+        currentRentAmount:
           type: number
-          description: 1.0 = fully occupied, less than 1.0 = partially/fully vacant
-        UnderManagementSince:
+        targetRentAmount:
+          type: number
+        energyLabel:
+          type: string
+        currentTenantId:
+          type: string
+        currentContractId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # Contract Schemas
+    CommercialRentContract:
+      type: object
+      properties:
+        id:
+          type: string
+        contractNumber:
+          type: string
+        status:
+          type: string
+          enum: [concept, active, expired, terminated]
+        tenantId:
+          type: string
+        tenantName:
+          type: string
+        unitId:
+          type: string
+        unitAddress:
+          type: string
+        startDate:
           type: string
           format: date
-          nullable: true
-        SalesDate:
+        endDate:
           type: string
           format: date
-          nullable: true
-        EnergyIndex:
+        rentAmount:
           type: number
-          nullable: true
-        EnergyLabel:
+          description: Monthly rent in EUR
+        serviceCostAmount:
+          type: number
+        indexationDate:
           type: string
-          nullable: true
-        ActiveContractRentId:
-          type: integer
-          nullable: true
-        ActiveContractRentTenantId:
-          type: integer
-          nullable: true
-        ManagementState:
+          format: date
+        indexationType:
           type: string
-        AddressId:
+        breakOptionDate:
+          type: string
+          format: date
+        specialConditions:
+          type: string
+        signedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PrivateRentContract:
+      type: object
+      properties:
+        id:
+          type: string
+        contractNumber:
+          type: string
+        status:
+          type: string
+          enum: [concept, active, expired, terminated]
+        tenantId:
+          type: string
+        tenantName:
+          type: string
+        unitId:
+          type: string
+        unitAddress:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        rentAmount:
+          type: number
+        serviceCostAmount:
+          type: number
+        depositAmount:
+          type: number
+        indexationDate:
+          type: string
+          format: date
+        noticePeriodMonths:
           type: integer
+        signedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SupplierContract:
+      type: object
+      properties:
+        id:
+          type: string
+        contractNumber:
+          type: string
+        supplierId:
+          type: string
+        supplierName:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, expired, terminated]
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        annualValue:
+          type: number
+        paymentFrequency:
+          type: string
+          enum: [monthly, quarterly, annually]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # Maintenance Schemas
+    ServiceTicket:
+      type: object
+      properties:
+        id:
+          type: string
+        ticketNumber:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [open, in_progress, completed, cancelled]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        category:
+          type: string
+          description: Type of maintenance (plumbing, electrical, HVAC, etc.)
+        unitId:
+          type: string
+        buildingId:
+          type: string
+        complexId:
+          type: string
+        reportedBy:
+          type: string
+        reportedAt:
+          type: string
+          format: date-time
+        assignedToSupplierId:
+          type: string
+        assignedToSupplierName:
+          type: string
+        scheduledDate:
+          type: string
+          format: date
+        completedAt:
+          type: string
+          format: date-time
+        estimatedCost:
+          type: number
+        actualCost:
+          type: number
+        notes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ServiceTicketCreate:
+      type: object
+      required:
+        - title
+        - description
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        category:
+          type: string
+        unitId:
+          type: string
+        buildingId:
+          type: string
+        complexId:
+          type: string
+
+    ServiceTicketUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [open, in_progress, completed, cancelled]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        assignedToSupplierId:
+          type: string
+        scheduledDate:
+          type: string
+          format: date
+        notes:
+          type: string
+
+    # Invoice Schemas
+    Journal:
+      type: object
+      properties:
+        id:
+          type: string
+        journalNumber:
+          type: string
+        ownerId:
+          type: string
+        ownerName:
+          type: string
+        date:
+          type: string
+          format: date
+        description:
+          type: string
+        totalDebit:
+          type: number
+        totalCredit:
+          type: number
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/JournalEntry'
+        createdAt:
+          type: string
+          format: date-time
+
+    JournalEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        accountCode:
+          type: string
+        accountName:
+          type: string
+        description:
+          type: string
+        debitAmount:
+          type: number
+        creditAmount:
+          type: number
+        reference:
+          type: string
+
+    # Common Schemas
+    Address:
+      type: object
+      properties:
+        street:
+          type: string
+        houseNumber:
+          type: string
+        houseNumberAddition:
+          type: string
+        postalCode:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+          default: Netherlands
