@@ -62,7 +62,7 @@ const KNOWN_SORTABLE_FIELDS = {
   'IndexationMethods': ['IndexationMethodId', 'Name', 'Type'],
   'IndexationSeries': ['IndexationSeriesId', 'Name'],
   'IndexationSeriesValues': ['IndexationSeriesValueId', 'IndexationSeriesId', 'Year', 'Percentage'],
-  'CommercialOverview': ['RealEstateObjectId', 'Address', 'OwnerName', 'TenantName', 'IsOccupied'],
+  'CommercialOverview': ['RealEstateObjectId', 'GroupRealEstateObjectName', 'Address', 'OwnerName', 'TenantName', 'IsOccupied', 'BareRent_Yearly_TotalAmountExcl', 'ContractStartDate', 'ContractEndDate', 'CategoryName', 'RealEstateObjectType'],
   'PropertyValuationValues': ['PropertyValuationValueId', 'RealEstateObjectId', 'ValuationYear', 'Value', 'ValuationTypeName'],
   'PropertyValuationTypes': ['PropertyValuationTypeId', 'Name'],
   'Notes': ['NoteId', 'CreatedOnTimeStamp', 'LastEditedOnTimeStamp', 'EntityLinkType', 'EntityId'],
@@ -695,8 +695,9 @@ async function handleMetadataSummary(env) {
       CommercialOverview: {
         description: 'Commercial summary per property - NO JOIN NEEDED! Contains tenant, owner, rent, contract dates',
         sortableFields: KNOWN_SORTABLE_FIELDS['CommercialOverview'],
+        keyFields: ['RealEstateObjectId', 'Address', 'OwnerName', 'TenantName', 'IsOccupied', 'BareRent_Yearly_TotalAmountExcl', 'ContractStartDate', 'ContractEndDate', 'CategoryName'],
         filterExamples: ["IsOccupied eq true", "IsOccupied eq false"],
-        note: 'Excellent for quick portfolio overview without complex joins'
+        note: 'Excellent for quick portfolio overview. IMPORTANT: rent field is BareRent_Yearly_TotalAmountExcl (not BareRent). Also has ServiceCosts_Yearly_TotalAmountExcl, ContractReference, RentableFloorArea.'
       },
       SalesInvoiceLines: {
         description: 'Individual invoice lines with property and ledger account',

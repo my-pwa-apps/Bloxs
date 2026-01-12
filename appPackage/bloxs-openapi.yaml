@@ -96,7 +96,8 @@ paths:
       summary: Get commercial portfolio overview
       description: |
         Quick portfolio overview with tenant, owner, rent info - NO JOINS NEEDED.
-        Key fields: RealEstateObjectId, Address, OwnerName, TenantName, IsOccupied, BareRent.
+        Key fields: RealEstateObjectId, Address, OwnerName, TenantName, IsOccupied, BareRent_Yearly_TotalAmountExcl, ContractStartDate, ContractEndDate.
+        IMPORTANT: rent field is BareRent_Yearly_TotalAmountExcl (not BareRent).
       parameters:
         - $ref: '#/components/parameters/filter'
         - $ref: '#/components/parameters/select'
