@@ -113,6 +113,96 @@ paths:
               schema:
                 $ref: '#/components/schemas/ODataResponse'
 
+  /CommercialOverviewSpecific:
+    get:
+      operationId: getCommercialOverviewSpecific
+      summary: Get extended commercial overview
+      description: |
+        Extended commercial overview (superset of CommercialOverview) for deeper analysis.
+        Useful fields include: FutureContractStartDate, TotalAmountTheoreticalRent, EnergyLabel, ContractRemarks,
+        AdministratorName, FinancierName, EstateAgentName.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  /Sections:
+    get:
+      operationId: getSections
+      summary: Get sections
+      description: |
+        Sections within complexes.
+        Key fields: SectionId, ComplexId, ComplexName, DisplayName, DisplayAddress, CategoryName.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  /RealEstateObjects:
+    get:
+      operationId: getRealEstateObjects
+      summary: Get real estate objects (base)
+      description: |
+        Base table for all real estate object types (Buildings, Complexes, Units, Sections).
+        Key fields: RealEstateObjectId, DisplayName, DisplayAddress, CategoryName, OwnerId, Owner, OccupationPercentage,
+        ActiveContractRentId, ActiveContractRentTenantId.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  /Addresses:
+    get:
+      operationId: getAddresses
+      summary: Get addresses
+      description: |
+        Address records (street/city/postal code). Useful for enriching Relations/Persons/Owners and geodata.
+        Key fields: AddressId, Street, HouseNumber, PostalCode, City, Country, Latitude, Longitude, DisplayName.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
   # ==================== RELATIONS ====================
   /Owners:
     get:
@@ -295,6 +385,50 @@ paths:
               schema:
                 $ref: '#/components/schemas/ODataResponse'
 
+  /ServiceTicketProblemCategories:
+    get:
+      operationId: getServiceTicketProblemCategories
+      summary: Get service ticket problem categories
+      description: |
+        Ticket problem categories (tenant-specific labels).
+        Use to discover valid category names/ids before filtering ServiceTickets by ServiceTicketProblemCategoryName/Id.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  /ServiceTicketCostCategories:
+    get:
+      operationId: getServiceTicketCostCategories
+      summary: Get service ticket cost categories
+      description: |
+        Ticket cost categories (tenant-specific labels), often linked to ledger accounts.
+        Use to discover valid category names/ids before filtering ServiceTickets by ServiceTicketCostCategoryName/Id.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
   # ==================== FINANCIALS ====================
   /FinancialMutations:
     get:
@@ -364,6 +498,28 @@ paths:
               schema:
                 $ref: '#/components/schemas/ODataResponse'
 
+  /SalesInvoiceLines:
+    get:
+      operationId: getSalesInvoiceLines
+      summary: Get sales invoice lines
+      description: |
+        Sales invoice line items. Use for property-level allocation (RealEstateObjectId/Name) and ledger breakdown.
+        Recommended workflow: query SalesInvoices with a restrictive $filter, then query SalesInvoiceLines by SalesInvoiceId.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
   /PurchaseInvoices:
     get:
       operationId: getPurchaseInvoices
@@ -386,6 +542,29 @@ paths:
               schema:
                 $ref: '#/components/schemas/ODataResponse'
 
+  /PurchaseInvoiceLines:
+    get:
+      operationId: getPurchaseInvoiceLines
+      summary: Get purchase invoice lines
+      description: |
+        Purchase invoice line items. Use when PurchaseInvoices does not carry RealEstateObjectName,
+        or when you need line-level allocation by RealEstateObjectId and ledger account.
+        Recommended workflow: query PurchaseInvoices with a restrictive $filter, then query PurchaseInvoiceLines by PurchaseInvoiceId.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
   /OpenPositionDebtors:
     get:
       operationId: getOpenPositionDebtors
@@ -393,6 +572,50 @@ paths:
       description: |
         Debtor aging report - outstanding amounts from tenants.
         Key fields: SalesInvoiceId, InvoiceDate, DueDate, Age, OutstandingAmount, RelationName, OwnerName.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  /OpenPositionCreditors:
+    get:
+      operationId: getOpenPositionCreditors
+      summary: Get outstanding payables
+      description: |
+        Creditor aging report - outstanding amounts to suppliers.
+        Key fields: PurchaseInvoiceId, InvoiceDate, DueDate, Age, OutstandingAmount, RelationName.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  /FinancingContracts:
+    get:
+      operationId: getFinancingContracts
+      summary: Get financing contracts (loans/mortgages)
+      description: |
+        Loans/mortgages. Note: this table is often empty in practice; for mortgage insight, prefer FinancialMutations.
+        Useful fields: FinancingContractId, Reference, StartDate, EndDate, Amount, RelationName (bank), OwnerName.
       parameters:
         - $ref: '#/components/parameters/filter'
         - $ref: '#/components/parameters/select'

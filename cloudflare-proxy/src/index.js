@@ -14,6 +14,13 @@
 let cachedToken = null;
 let tokenExpiry = 0;
 
+// Never return data referencing these owner names (case-insensitive exact match).
+// This is enforced at the proxy layer across all endpoints.
+const FORBIDDEN_OWNER_NAMES = new Set([
+  'wals huren',
+  'greenhorn properties bv'
+]);
+
 const ALLOWED_METHODS = new Set(['GET', 'OPTIONS']);
 
 // Backward-compatible entity casing fixes (path segment -> canonical segment)
@@ -32,6 +39,11 @@ const ENTITY_TOP_CAPS = {
   salesinvoicelines: 200,
   purchaseinvoicelines: 200
 };
+
+const ENTITIES_REQUIRE_FILTER = new Set([
+  'financialmutations',
+  'journalposttransactions'
+]);
 
 const LEARN_INDEX_KEY = 'learn:index:v1';
 
@@ -150,6 +162,14 @@ export default {
 
     // Validate and fix query parameters if needed
     const fixedSearch = validateAndFixQuery(url.search, entityName);
+
+    // Guardrail: require $filter for very large entities to avoid expensive scans/timeouts
+    if (requiresFilter(entityName) && !new URLSearchParams(fixedSearch).has('$filter')) {
+      return jsonError(
+        `Missing required $filter for ${entityName}. Add a restrictive $filter (and keep $top <= ${getTopCap(entityName)}).`,
+        400
+      );
+    }
     
     // Forward the request to Bloxs OData API
     const bloxsUrl = `${env.BLOXS_BASE_URL}${normalizedPathname}${fixedSearch}`;
@@ -171,12 +191,16 @@ export default {
         return handleODataError(response.status, responseBody, entityName);
       }
 
+      // Redact any rows that reference forbidden owner names.
+      // Applies to all entity sets to ensure the proxy never returns data tied to those owners.
+      const { body: redactedBody } = redactForbiddenOwnersFromODataJson(responseBody);
+
       // Opportunistically learn schema (field names only). Never store record values.
       if (ctx) {
-        ctx.waitUntil(maybeLearnFromOData(entityName, responseBody, env));
+        ctx.waitUntil(maybeLearnFromOData(entityName, redactedBody, env));
       }
 
-      return new Response(responseBody, {
+      return new Response(redactedBody, {
         status: response.status,
         headers: {
           'Content-Type': 'application/json',
@@ -291,6 +315,11 @@ function getKnownSortableFields(entityName) {
 function getTopCap(entityName) {
   const key = (entityName || '').toLowerCase();
   return ENTITY_TOP_CAPS[key] || 500;
+}
+
+function requiresFilter(entityName) {
+  const key = (entityName || '').toLowerCase();
+  return ENTITIES_REQUIRE_FILTER.has(key);
 }
 
 function normalizeODataPathname(pathname) {
@@ -1117,4 +1146,64 @@ function jsonError(message, status) {
       'Access-Control-Allow-Origin': '*'
     }
   });
+}
+
+function redactForbiddenOwnersFromODataJson(responseBody) {
+  if (!responseBody || typeof responseBody !== 'string') {
+    return { body: responseBody };
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(responseBody);
+  } catch {
+    return { body: responseBody };
+  }
+
+  const values = Array.isArray(parsed?.value) ? parsed.value : null;
+  if (!values) {
+    return { body: responseBody };
+  }
+
+  const filtered = values.filter((row) => !objectContainsForbiddenOwnerName(row));
+  if (filtered.length === values.length) {
+    return { body: responseBody };
+  }
+
+  const updated = { ...parsed, value: filtered };
+  return { body: JSON.stringify(updated) };
+}
+
+function objectContainsForbiddenOwnerName(value) {
+  const seen = new Set();
+  const stack = [value];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+
+    if (current == null) continue;
+
+    if (typeof current === 'string') {
+      const normalized = current.trim().toLowerCase();
+      if (FORBIDDEN_OWNER_NAMES.has(normalized)) return true;
+      continue;
+    }
+
+    if (typeof current !== 'object') continue;
+    if (seen.has(current)) continue;
+    seen.add(current);
+
+    if (Array.isArray(current)) {
+      for (const item of current) stack.push(item);
+      continue;
+    }
+
+    for (const key of Object.keys(current)) {
+      // Skip OData metadata fields.
+      if (key && key.startsWith('@odata.')) continue;
+      stack.push(current[key]);
+    }
+  }
+
+  return false;
 }
