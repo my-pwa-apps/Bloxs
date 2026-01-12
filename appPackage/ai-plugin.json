@@ -11,7 +11,7 @@
   "functions": [
     {
       "name": "getUnits",
-      "description": "Get rental units (apartments, offices, retail). Use $filter=OccupationPercentage lt 1 for vacant units."
+      "description": "Get rental units (apartments, offices, retail). For vacancy, use $filter=OccupationPercentage lt 1 AND cross-check ActiveContractRentId/ActiveContractRentTenantId; do not conclude vacancy from OccupationPercentage alone."
     },
     {
       "name": "getBuildings",
@@ -64,6 +64,10 @@
     {
       "name": "getSalesContractLineItems",
       "description": "Rent line items with amounts per property. Contains RealEstateObjectName."
+    },
+    {
+      "name": "getSalesContractLines",
+      "description": "Contract lines linked to RealEstateObjectId. Use this for efficient contract history per unit/property: query by RealEstateObjectId (OR-filter for small sets), then fetch SalesContracts for the returned SalesContractId values."
     },
     {
       "name": "getServiceTickets",
@@ -175,6 +179,7 @@
         "getSalesContracts",
         "getSalesContractRealestateObjects",
         "getSalesContractLineItems",
+        "getSalesContractLines",
         "getServiceTickets",
         "getServiceTicketStates",
         "getServiceTicketProblemCategories",

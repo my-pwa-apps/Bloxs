@@ -29,8 +29,10 @@ paths:
       summary: Get rental units
       description: |
         Retrieve rental units (apartments, offices, retail spaces).
-        Key fields: UnitId, DisplayName, DisplayAddress, OwnerId, Owner, OccupationPercentage, CategoryName, ComplexName.
-        Use OccupationPercentage lt 1 to find vacant units.
+        Key fields: UnitId, RealEstateObjectId, DisplayName, DisplayAddress, OwnerId, Owner, OccupationPercentage,
+        ActiveContractRentId, ActiveContractRentTenantId, CategoryName, ComplexName.
+        IMPORTANT: Do not conclude vacancy from OccupationPercentage alone. Use OccupationPercentage lt 1 to find candidates,
+        then cross-check ActiveContractRentId/ActiveContractRentTenantId to avoid false positives.
       parameters:
         - $ref: '#/components/parameters/filter'
         - $ref: '#/components/parameters/select'
@@ -323,6 +325,37 @@ paths:
       description: |
         Detailed rent line items with amounts per property.
         Key fields: SalesContractLineItemId, SalesContractId, RealEstateObjectId, RealEstateObjectName, Amount, StartDate, EndDate.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  /SalesContractLine:
+    get:
+      operationId: getSalesContractLines
+      summary: Get contract lines (property linkage)
+      description: |
+        Contract lines linked to real estate objects (best source for contract history per RealEstateObjectId).
+        Use this to find contract history for a set of RealEstateObjectId values without sampling.
+
+        Common fields: SalesContractLineId, SalesContractId, RealEstateObjectId, Description,
+        AmountExcl, AmountVAT, AmountIncl, StartDate, EndDate, InvoiceInterval.
+
+        Recommended workflow for history on a small list (e.g., 10–50 objects):
+        1) Query SalesContractLine with a restrictive $filter using ORs on RealEstateObjectId.
+        2) Collect distinct SalesContractId values.
+        3) Query SalesContracts by those ids to get Reference/RelationName/IsEnded/StartDate/EndDate.
+        4) Per object, determine the latest EndDate (or active if EndDate is null / IsEnded is false).
       parameters:
         - $ref: '#/components/parameters/filter'
         - $ref: '#/components/parameters/select'

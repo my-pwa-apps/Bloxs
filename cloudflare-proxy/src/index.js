@@ -57,6 +57,7 @@ const KNOWN_SORTABLE_FIELDS = {
   'SalesContracts': ['SalesContractId', 'Reference', 'StartDate', 'EndDate', 'RelationName', 'OwnerName', 'IsEnded'],
   'SalesContractRealestateObjects': ['SalesContractId', 'RealEstateObjectId', 'SortingIndex'],
   'SalesContractLineItems': ['SalesContractLineItemId', 'SalesContractId', 'RealEstateObjectId', 'RealEstateObjectName', 'Amount', 'StartDate', 'EndDate', 'LedgerAccountName'],
+  'SalesContractLine': ['SalesContractLineId', 'SalesContractId', 'RealEstateObjectId', 'StartDate', 'EndDate', 'AmountExcl', 'AmountIncl', 'InvoiceInterval'],
   'FinancingContracts': ['FinancingContractId', 'Reference', 'StartDate', 'EndDate', 'PrincipalAmount', 'RealEstateObjectId'],
   'FinancialMutations': ['JournalPostId', 'TransactionDate', 'LedgerAccountCode', 'Amount', 'RealEstateObjectName', 'RelationName', 'FinancialYear', 'BookingDate'],
   'LedgerAccounts': ['LedgerAccountId', 'Code', 'Name', 'LedgerAccountType'],
