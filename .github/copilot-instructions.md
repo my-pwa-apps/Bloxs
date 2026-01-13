@@ -45,3 +45,24 @@ Microsoft 365 Agents Toolkit was formerly called Teams Toolkit. Prefer the new n
 
 ## Safety / secrets
 - Never print or commit secrets. Treat `env/.env.*.user` and Worker secrets as sensitive.
+- API key files should never be committed to the repo.
+
+## M365 Copilot agent best practices (applied)
+These patterns are implemented in this agent based on Microsoft documentation:
+
+### Instructions structure
+- **Use positive examples** showing *User input* → *Agent call* mappings (not negative "don't do X" lists)
+- **Keep instructions concise** (current: ~2400 chars, limit: 8000)
+- **Action-oriented** function descriptions in the plugin manifest
+
+### Query patterns for Bloxs OData
+- **Vacancy detection**: `OccupationPercentage lt 1` finds candidates, but always cross-check `ActiveContractRentId` to avoid false positives
+- **Contract history**: Use `getSalesContractLines` filtered by `RealEstateObjectId` (not sampling join tables)
+- **Tenant-specific labels**: Query lookup endpoints first (e.g., `getServiceTicketStates`) before filtering
+- **Large tables**: Always use `$filter` and `$top<=100` for `FinancialMutations`
+
+### Multi-turn conversation handling
+The agent instructions include multi-step workflows for complex queries:
+- Costs per property: invoices → invoice lines by ID
+- Mortgages: ledger accounts → financial mutations
+- WOZ by owner: units by owner → valuation values by RealEstateObjectId

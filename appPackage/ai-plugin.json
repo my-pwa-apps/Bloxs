@@ -1,9 +1,9 @@
 {
-  "$schema": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.2/schema.json",
-  "schema_version": "v2.2",
+  "$schema": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.3/schema.json",
+  "schema_version": "v2.3",
   "name_for_human": "Bloxs Real Estate",
   "description_for_human": "Connect to Bloxs real estate software to query properties, tenants, contracts, and maintenance.",
-  "description_for_model": "Query Bloxs real estate data (read-only) via OData. Prefer targeted queries using $select and small $top. For cross-entity reasoning, use join/link endpoints like getSalesContractRealestateObjects, getSalesInvoiceLines, and getPurchaseInvoiceLines. Status/state/workflow labels are tenant-specific: discover valid values first (e.g., getServiceTicketStates) before filtering.",
+  "description_for_model": "Query Bloxs real estate data (read-only) via OData. Use $select for specific fields and small $top values. For cross-entity analysis, use join endpoints (getSalesContractLines, getSalesInvoiceLines, getPurchaseInvoiceLines). Status/state labels are tenant-specific: discover valid values first via lookup endpoints like getServiceTicketStates before filtering.",
   "namespace": "bloxs",
   "logo_url": "https://www.bloxs.com/wp-content/uploads/2024/06/logo.png",
   "legal_info_url": "https://www.bloxs.com/privacyverklaring/",
@@ -11,147 +11,255 @@
   "functions": [
     {
       "name": "getUnits",
-      "description": "Get rental units (apartments, offices, retail). For vacancy, use $filter=OccupationPercentage lt 1 AND cross-check ActiveContractRentId/ActiveContractRentTenantId; do not conclude vacancy from OccupationPercentage alone."
+      "description": "Get rental units (apartments, offices, retail). Use $filter=OccupationPercentage lt 1 for vacancy candidates, then verify ActiveContractRentId is null.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getBuildings",
-      "description": "Get buildings (standalone properties). Filter by OwnerId for owner-specific properties."
+      "description": "Get standalone buildings. Filter by OwnerId for owner-specific properties. Use DisplayAddress for location.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getComplexes",
-      "description": "Get complexes (collections of units). Check OccupationPercentage for vacancy."
+      "description": "Get complexes (multi-unit properties). Check OccupationPercentage for vacancy rate.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getCommercialOverview",
-      "description": "Quick portfolio overview with tenant, owner, rent info. No joins needed."
+      "description": "Quick portfolio overview with tenant, owner, rent. Key fields: Address, OwnerName, TenantName, IsOccupied, BareRent_Yearly_TotalAmountExcl. No joins needed.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getCommercialOverviewSpecific",
-      "description": "Extended commercial overview (superset) for deeper analysis fields like energy label and theoretical rent."
+      "description": "Extended commercial overview with EnergyLabel, TheoreticalRent, FutureContractStartDate for deeper analysis.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getRealEstateObjects",
-      "description": "Base real estate object table across Units/Buildings/Complexes/Sections. Useful for generic lookups and joins."
+      "description": "Base table for all property types. Use specific tables (Units, Buildings) when OwnerId filtering is needed.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getSections",
-      "description": "Sections within complexes. Useful for hierarchical portfolio views."
+      "description": "Get sections within complexes for hierarchical portfolio views.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getAddresses",
-      "description": "Addresses (street/city/postal code, coordinates). Useful for enriching relations and geodata."
+      "description": "Get address records with Street, City, PostalCode, Latitude, Longitude for geodata.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getOwners",
-      "description": "Get property owners with contact info and RelationId."
+      "description": "Get property owners with DisplayName, Email, RelationId for linking to other entities.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getPersons",
-      "description": "Get persons (tenants, contacts). Use RelationId to link to contracts."
+      "description": "Get persons (tenants, contacts) with RelationId to link to contracts.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getRelations",
-      "description": "Base table for all relation types (persons, organisations, suppliers)."
+      "description": "Base table for all relation types (persons, organisations, suppliers).",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getSalesContracts",
-      "description": "Get rent contracts. Use IsEnded eq false for active contracts."
+      "description": "Get rent contracts. Filter IsEnded eq false for active contracts. Contains RelationName, OwnerName.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getSalesContractRealestateObjects",
-      "description": "Link table between SalesContracts and Units/Properties."
+      "description": "Link table: SalesContractId to RealEstateObjectId. Use for contract-to-property joins.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getSalesContractLineItems",
-      "description": "Rent line items with amounts per property. Contains RealEstateObjectName."
+      "description": "Rent line items with RealEstateObjectName, Amount, StartDate, EndDate. Good for rent-per-property analysis.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getSalesContractLines",
-      "description": "Contract lines linked to RealEstateObjectId. Use this for efficient contract history per unit/property: query by RealEstateObjectId (OR-filter for small sets), then fetch SalesContracts for the returned SalesContractId values."
+      "description": "Contract lines by RealEstateObjectId. Best source for contract history: query by RealEstateObjectId, collect SalesContractId values, then fetch SalesContracts.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getServiceTickets",
-      "description": "Maintenance tickets. First query getServiceTicketStates for valid state names."
+      "description": "Maintenance tickets with RealEstateObjectName, TenantName, ServiceTicketStateName. First query getServiceTicketStates for valid state names.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getServiceTicketStates",
-      "description": "Valid ticket states (tenant-specific names). Query first for filtering tickets."
+      "description": "Valid ticket states (tenant-specific). Query first to discover state names before filtering ServiceTickets.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getServiceTicketProblemCategories",
-      "description": "Ticket problem categories (tenant-specific). Discover valid category labels/ids before filtering tickets."
+      "description": "Ticket problem categories (tenant-specific). Discover valid labels before filtering tickets.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getServiceTicketCostCategories",
-      "description": "Ticket cost categories (tenant-specific). Useful for maintenance cost classification."
+      "description": "Ticket cost categories for maintenance cost classification.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getFinancialMutations",
-      "description": "Ledger transactions. Always use $filter and $top<=100. Source for mortgage data."
+      "description": "Ledger transactions. ALWAYS use $filter and $top<=100. Source for mortgage data via LedgerAccountCode.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getLedgerAccounts",
-      "description": "Chart of accounts. Use contains(Name,'hypothe') to find mortgage account codes."
+      "description": "Chart of accounts. Use contains(Name,'hypothe') to find mortgage account codes for FinancialMutations.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getSalesInvoices",
-      "description": "Sales invoices to tenants. Filter by FinancialYear."
+      "description": "Sales invoices to tenants. Filter by FinancialYear. WorkflowState is tenant-specific.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getSalesInvoiceLines",
-      "description": "Sales invoice line items. Use for property-level allocation and ledger breakdown; filter by SalesInvoiceId."
+      "description": "Invoice lines with RealEstateObjectId for property-level allocation. Filter by SalesInvoiceId.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getPurchaseInvoices",
-      "description": "Purchase invoices from suppliers. Key for cost analysis per property."
+      "description": "Purchase invoices from suppliers with RealEstateObjectName for cost analysis. Filter by FinancialYear.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getPurchaseInvoiceLines",
-      "description": "Purchase invoice line items. Use when header lacks property info; filter by PurchaseInvoiceId."
+      "description": "Invoice lines with RealEstateObjectId. Use when header lacks property info; filter by PurchaseInvoiceId.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getOpenPositionDebtors",
-      "description": "Debtor aging report. Outstanding amounts from tenants with Age field."
+      "description": "Debtor aging with OutstandingAmount, Age, RelationName. Filter Age gt 30 for overdue.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getOpenPositionCreditors",
-      "description": "Creditor aging report. Outstanding amounts to suppliers with Age field."
+      "description": "Creditor aging with outstanding amounts to suppliers.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getFinancingContracts",
-      "description": "Financing contracts (loans/mortgages). Often empty; for mortgages prefer LedgerAccounts + FinancialMutations."
+      "description": "Financing contracts (loans/mortgages). Often empty; prefer LedgerAccounts + FinancialMutations for mortgage data.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getPropertyValuationValues",
-      "description": "WOZ values. Filter by ValuationYear eq 2025. Contains RealEstateObjectName."
+      "description": "WOZ values. Filter ValuationYear eq 2025. Contains RealEstateObjectName, Value.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getTheoreticalRentItems",
-      "description": "Potential/market rent per property for vacancy impact analysis."
+      "description": "Market rent per property for vacancy impact analysis. Sum Amount for vacant units.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getInstallations",
-      "description": "Equipment and installations with NextMaintenanceOn for planning."
+      "description": "Equipment with NextMaintenanceOn for maintenance planning.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getMeters",
-      "description": "Utility meters (electricity, gas, water) per property."
+      "description": "Utility meters (electricity, gas, water) per property.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getMeterReadings",
-      "description": "Meter reading values over time. Link via MeterId."
+      "description": "Meter reading values over time. Link via MeterId.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getTasks",
-      "description": "System tasks and reminders with Deadline field."
+      "description": "System tasks and reminders with Deadline, Status fields.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getNotes",
-      "description": "Notes attached to entities. Filter by EntityLinkType and EntityId."
+      "description": "Notes attached to entities. Filter by EntityLinkType and EntityId.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     },
     {
       "name": "getOwnerSettlements",
-      "description": "Owner settlements/statements (afrekeningen) per period."
+      "description": "Owner settlements per period with TotalSettlementBalance.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     }
   ],
   "runtimes": [
@@ -164,63 +272,16 @@
       "spec": {
         "url": "bloxs-openapi.yaml"
       },
-      "run_for_functions": [
-        "getUnits",
-        "getBuildings",
-        "getComplexes",
-        "getCommercialOverview",
-        "getCommercialOverviewSpecific",
-        "getRealEstateObjects",
-        "getSections",
-        "getAddresses",
-        "getOwners",
-        "getPersons",
-        "getRelations",
-        "getSalesContracts",
-        "getSalesContractRealestateObjects",
-        "getSalesContractLineItems",
-        "getSalesContractLines",
-        "getServiceTickets",
-        "getServiceTicketStates",
-        "getServiceTicketProblemCategories",
-        "getServiceTicketCostCategories",
-        "getFinancialMutations",
-        "getLedgerAccounts",
-        "getSalesInvoices",
-        "getSalesInvoiceLines",
-        "getPurchaseInvoices",
-        "getPurchaseInvoiceLines",
-        "getOpenPositionDebtors",
-        "getOpenPositionCreditors",
-        "getFinancingContracts",
-        "getPropertyValuationValues",
-        "getTheoreticalRentItems",
-        "getInstallations",
-        "getMeters",
-        "getMeterReadings",
-        "getTasks",
-        "getNotes",
-        "getOwnerSettlements"
-      ]
+      "run_for_functions": ["*"]
     }
   ],
   "capabilities": {
     "conversation_starters": [
-      {
-        "text": "Show me an overview of our real estate portfolio"
-      },
-      {
-        "text": "Find all open maintenance tickets"
-      },
-      {
-        "text": "List all vacant rental units"
-      },
-      {
-        "text": "Show contracts expiring soon"
-      },
-      {
-        "text": "What are the WOZ values of our properties?"
-      }
+      { "text": "Show me an overview of our real estate portfolio" },
+      { "text": "Find all open maintenance tickets" },
+      { "text": "List all vacant rental units" },
+      { "text": "Show contracts expiring soon" },
+      { "text": "What are the WOZ values of our properties?" }
     ]
   }
 }
