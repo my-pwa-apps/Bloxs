@@ -75,3 +75,39 @@ The agent has access to Microsoft 365 data sources for correlation:
 - **WebSearch**: General web search for context
 
 Use case: After querying Bloxs for a property address, search M365 for related emails/documents using that address or tenant name.
+
+## Response Modes
+The agent adapts its response depth based on query complexity:
+
+| Mode | When to use | Approach |
+|------|-------------|----------|
+| **Quick** | Simple lookups, single facts | One API call, direct answer |
+| **Deep** | KPIs, comparisons, trends | Multiple endpoints, calculations |
+| **Research** | Helicopter view, recommendations | Full cross-entity analysis |
+
+### Helicopter View Analyses
+These insights combine data from multiple endpoints - not available in Bloxs GUI:
+
+| Analysis | Endpoints Used | Value |
+|----------|---------------|-------|
+| Vacancy Financial Impact | Units + TheoreticalRentItems | €-cost of vacancy per owner/complex |
+| Tenant Risk Score | OpenPositionDebtors + SalesContracts | Composite payment risk assessment |
+| Owner Portfolio Comparison | Units + Debtors + Tickets + Valuations | Benchmark owners on KPIs |
+| Problem Property ID | ServiceTickets + PurchaseInvoices | Flag properties >2x avg cost |
+| Contract Renewal Value | SalesContracts + TheoreticalRentItems | Rent uplift opportunity at expiry |
+
+## EntityLinkType Reference
+For Notes and Tasks filtering:
+
+| Entity | Value |
+|--------|-------|
+| Owner | 1 |
+| Supplier | 2 |
+| Organisation | 3 |
+| Person | 4 |
+| Building | 11 |
+| Complex | 12 |
+| Unit | 13 |
+| Section | 14 |
+| ServiceTicket | 63 |
+| Installation | 67 |

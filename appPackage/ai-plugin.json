@@ -2,8 +2,8 @@
   "$schema": "https://developer.microsoft.com/json-schemas/copilot/plugin/v2.3/schema.json",
   "schema_version": "v2.3",
   "name_for_human": "Bloxs Real Estate",
-  "description_for_human": "Connect to Bloxs real estate software to query properties, tenants, contracts, and maintenance.",
-  "description_for_model": "Query Bloxs real estate data (read-only) via OData. Use $select for specific fields and small $top values. For cross-entity analysis, use join endpoints (getSalesContractLines, getSalesInvoiceLines, getPurchaseInvoiceLines). Status/state labels are tenant-specific: discover valid values first via lookup endpoints like getServiceTicketStates before filtering.",
+  "description_for_human": "Query Bloxs real estate data: properties, tenants, contracts, maintenance and financials. Get portfolio insights, vacancy analysis, and KPIs.",
+  "description_for_model": "Bloxs real estate data analyst. Query OData API (read-only) for portfolio insights, cross-entity analysis, and KPI calculations.\n\n## Response Modes\n- **Quick**: Single endpoint, direct facts\n- **Deep**: Multi-endpoint, calculated KPIs\n- **Research**: Full cross-entity analysis, recommendations\n\n## Key Patterns\n- Portfolio: getCommercialOverview (no joins needed)\n- Vacancy: getUnits(OccupationPercentage lt 1) + getTheoreticalRentItems for €-impact\n- Arrears: getOpenPositionDebtors(Age gt 30) for risk\n- Contracts: getSalesContracts(IsEnded eq false, EndDate lt X)\n- Costs: getPurchaseInvoices → getPurchaseInvoiceLines if RealEstateObjectName empty\n- Mortgages: getLedgerAccounts(contains Name 'hypothe') → getFinancialMutations\n\n## Rules\n- Labels (Status/State) are tenant-specific: discover via lookup endpoints first\n- FinancialMutations: ALWAYS $filter + $top<=100\n- Use $select for efficiency, $top=50 default",
   "namespace": "bloxs",
   "logo_url": "https://www.bloxs.com/wp-content/uploads/2024/06/logo.png",
   "legal_info_url": "https://www.bloxs.com/privacyverklaring/",
@@ -11,7 +11,7 @@
   "functions": [
     {
       "name": "getUnits",
-      "description": "Get rental units. Vacancy: $filter=OccupationPercentage lt 1 and not contains(DisplayName,'VERKOCHT'), verify ActiveContractRentId is null. Exclude units where parent complex/building has FinancialMutations (externally managed).",
+      "description": "Core property entity. For vacancy: $filter=OccupationPercentage lt 1 and not contains(DisplayName,'VERKOCHT'), verify ActiveContractRentId is null. Exclude units with FinancialMutations on parent (externally managed). Combine with getTheoreticalRentItems for €-impact. Key: UnitId, DisplayAddress, OwnerId, OccupationPercentage, ComplexId.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
@@ -32,7 +32,7 @@
     },
     {
       "name": "getCommercialOverview",
-      "description": "Quick portfolio overview with tenant, owner, rent. Key fields: Address, OwnerName, TenantName, IsOccupied, BareRent_Yearly_TotalAmountExcl. No joins needed.",
+      "description": "BEST for portfolio dashboard - no joins needed. Contains Address, OwnerName, TenantName, IsOccupied, BareRent_Yearly_TotalAmountExcl, ContractStartDate, ContractEndDate. Calculate: total rent, occupancy rate, contract expiry risk.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
@@ -88,7 +88,7 @@
     },
     {
       "name": "getSalesContracts",
-      "description": "Get rent contracts. Filter IsEnded eq false for active contracts. Contains RelationName, OwnerName.",
+      "description": "CONTRACT MANAGEMENT: Rent contracts. Filter IsEnded eq false for active. For expiry risk: EndDate lt [date]. Key: SalesContractId, Reference, RelationName, OwnerName, StartDate, EndDate, IsEnded. Combine with getSalesContractLineItems for rent amounts per property.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
@@ -116,7 +116,7 @@
     },
     {
       "name": "getServiceTickets",
-      "description": "Maintenance tickets with RealEstateObjectName, TenantName, ServiceTicketStateName. First query getServiceTicketStates for valid state names.",
+      "description": "MAINTENANCE ANALYSIS: Service tickets - NO JOINS needed. Contains RealEstateObjectName, TenantName, SupplierName, ServiceTicketStateName. For open tickets: first getServiceTicketStates to discover state names. Combine with getPurchaseInvoices for cost analysis.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
@@ -144,7 +144,7 @@
     },
     {
       "name": "getFinancialMutations",
-      "description": "Ledger transactions. ALWAYS use $filter and $top<=100. Source for mortgage data via LedgerAccountCode.",
+      "description": "FINANCIAL DEEP-DIVE: Ledger transactions. **ALWAYS** $filter + $top<=100. For mortgages: first getLedgerAccounts(contains Name 'hypothe'), then filter by LedgerAccountCode. Key: TransactionDate, LedgerAccountCode, Amount, RealEstateObjectName, RelationName. Calculate: mortgage payments, interest costs.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
@@ -172,7 +172,7 @@
     },
     {
       "name": "getPurchaseInvoices",
-      "description": "Purchase invoices from suppliers with RealEstateObjectName for cost analysis. Filter by FinancialYear.",
+      "description": "COST ANALYSIS: Purchase invoices from suppliers. Filter FinancialYear eq 2025. Key: PurchaseInvoiceId, Reference, InvoiceDate, TotalValueIncluding, RelationName, RealEstateObjectName. If RealEstateObjectName empty: use getPurchaseInvoiceLines. Calculate: costs per property, cost/m².",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
@@ -186,7 +186,7 @@
     },
     {
       "name": "getOpenPositionDebtors",
-      "description": "Debtor aging with OutstandingAmount, Age, RelationName. Filter Age gt 30 for overdue.",
+      "description": "RISK ANALYSIS: Outstanding receivables. Filter Age gt 30 for overdue payments. Key: RelationName, OutstandingAmount, Age, DueDate, OwnerName. Calculate: total arrears, DSO, tenant risk score. Combine with getSalesContracts for tenant context.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
@@ -207,14 +207,14 @@
     },
     {
       "name": "getPropertyValuationValues",
-      "description": "WOZ values. Filter ValuationYear eq 2025. Contains RealEstateObjectName, Value.",
+      "description": "VALUATION DATA: WOZ values per property. Filter ValuationYear eq 2025/2026. Key: RealEstateObjectId, RealEstateObjectName, Value, ValuationYear. Combine with getUnits(OwnerId) for owner-specific WOZ. Calculate: total portfolio value, LTV ratio.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
     },
     {
       "name": "getTheoreticalRentItems",
-      "description": "Market rent per property for vacancy impact analysis. Sum Amount for vacant units.",
+      "description": "VACANCY COST ANALYSIS: Market rent per property. Combine with getUnits(vacant) to calculate €-impact of vacancy. Key: RealEstateObjectId, RealEstateObjectName, Amount. Sum Amount for total potential rent loss.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
