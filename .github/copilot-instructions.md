@@ -66,3 +66,12 @@ The agent instructions include multi-step workflows for complex queries:
 - Costs per property: invoices → invoice lines by ID
 - Mortgages: ledger accounts → financial mutations
 - WOZ by owner: units by owner → valuation values by RealEstateObjectId
+
+### M365 Capabilities
+The agent has access to Microsoft 365 data sources for correlation:
+- **OneDriveAndSharePoint**: Search documents related to properties/tenants
+- **Email**: Find emails about specific addresses or tenant names
+- **TeamsMessages**: Search Teams chats for property-related discussions
+- **WebSearch**: General web search for context
+
+Use case: After querying Bloxs for a property address, search M365 for related emails/documents using that address or tenant name.

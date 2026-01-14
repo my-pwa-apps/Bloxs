@@ -18,8 +18,8 @@
     "full": "Bloxs"
   },
   "description": {
-    "short": "Connect to Bloxs real estate software in M365 Copilot",
-    "full": "A Microsoft 365 Copilot agent that connects to Bloxs real estate management software. Query properties, tenants, contracts, maintenance tickets, and financial data directly from Copilot. Bloxs is a powerful real estate accounting platform used by property managers across the Netherlands."
+    "short": "Bloxs vastgoeddata + M365 correlatie in Copilot",
+    "full": "Een Microsoft 365 Copilot agent die verbinding maakt met Bloxs vastgoedbeheer software. Query panden, huurders, contracten, onderhoud en financiële data. Correleer Bloxs gegevens met emails, Teams chats en documenten op OneDrive/SharePoint. Alleen-lezen toegang."
   },
   "accentColor": "#0078D4",
   "copilotAgents": {
