@@ -56,7 +56,7 @@ These patterns are implemented in this agent based on Microsoft documentation:
 - **Action-oriented** function descriptions in the plugin manifest
 
 ### Query patterns for Bloxs OData
-- **Vacancy detection**: `OccupationPercentage lt 1` finds candidates, but always cross-check `ActiveContractRentId` to avoid false positives
+- **Vacancy detection**: `OccupationPercentage lt 1` finds candidates, but always cross-check `ActiveContractRentId` to avoid false positives. Exclude units with `[VERKOCHT]` in DisplayName (sold properties kept for history). Also exclude units where the parent complex/building has `FinancialMutations` - these are externally managed by another party.
 - **Contract history**: Use `getSalesContractLines` filtered by `RealEstateObjectId` (not sampling join tables)
 - **Tenant-specific labels**: Query lookup endpoints first (e.g., `getServiceTicketStates`) before filtering
 - **Large tables**: Always use `$filter` and `$top<=100` for `FinancialMutations`

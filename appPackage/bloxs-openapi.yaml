@@ -30,9 +30,10 @@ paths:
       description: |
         Retrieve rental units (apartments, offices, retail spaces).
         Key fields: UnitId, RealEstateObjectId, DisplayName, DisplayAddress, OwnerId, Owner, OccupationPercentage,
-        ActiveContractRentId, ActiveContractRentTenantId, CategoryName, ComplexName.
-        IMPORTANT: Do not conclude vacancy from OccupationPercentage alone. Use OccupationPercentage lt 1 to find candidates,
-        then cross-check ActiveContractRentId/ActiveContractRentTenantId to avoid false positives.
+        ActiveContractRentId, ActiveContractRentTenantId, CategoryName, ComplexName, ComplexId.
+        Vacancy detection: Use OccupationPercentage lt 1 to find candidates, verify ActiveContractRentId is null.
+        IMPORTANT: Exclude units with '[VERKOCHT]' in DisplayName (sold, historical only).
+        IMPORTANT: Exclude units where the parent complex/building has FinancialMutations - these are externally managed.
       parameters:
         - $ref: '#/components/parameters/filter'
         - $ref: '#/components/parameters/select'
@@ -807,7 +808,10 @@ paths:
       description: |
         Notes attached to entities.
         Key fields: NoteId, EntityLinkType, EntityId, CreatedOnTimeStamp.
-        Filter by EntityLinkType and EntityId to get notes for a specific entity.
+        EntityLinkType is a numeric enum: Owner=1, Supplier=2, Organisation=3, Person=4, EstateAgent=5, Financier=6,
+        Building=11, Complex=12, Unit=13, Section=14, Project=15,
+        PrivateRentSalesContract=23, CommercialRentSalesContract=25, ServiceTicket=63, Installation=67.
+        Example: $filter=EntityLinkType eq 13 and EntityId eq 123 (notes for Unit 123).
       parameters:
         - $ref: '#/components/parameters/filter'
         - $ref: '#/components/parameters/select'

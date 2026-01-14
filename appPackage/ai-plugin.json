@@ -11,7 +11,7 @@
   "functions": [
     {
       "name": "getUnits",
-      "description": "Get rental units (apartments, offices, retail). Use $filter=OccupationPercentage lt 1 for vacancy candidates, then verify ActiveContractRentId is null.",
+      "description": "Get rental units. Vacancy: $filter=OccupationPercentage lt 1 and not contains(DisplayName,'VERKOCHT'), verify ActiveContractRentId is null. Exclude units where parent complex/building has FinancialMutations (externally managed).",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
@@ -249,7 +249,7 @@
     },
     {
       "name": "getNotes",
-      "description": "Notes attached to entities. Filter by EntityLinkType and EntityId.",
+      "description": "Notes attached to entities. Filter by EntityLinkType (Unit=13, Building=11, Complex=12, Person=4, Owner=1, ServiceTicket=63) and EntityId.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
