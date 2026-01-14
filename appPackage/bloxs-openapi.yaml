@@ -30,10 +30,22 @@ paths:
       description: |
         Retrieve rental units (apartments, offices, retail spaces).
         Key fields: UnitId, RealEstateObjectId, DisplayName, DisplayAddress, OwnerId, Owner, OccupationPercentage,
-        ActiveContractRentId, ActiveContractRentTenantId, CategoryName, ComplexName, ComplexId.
-        Vacancy detection: Use OccupationPercentage lt 1 to find candidates, verify ActiveContractRentId is null.
-        IMPORTANT: Exclude units with '[VERKOCHT]' in DisplayName (sold, historical only).
-        IMPORTANT: Exclude units where the parent complex/building has FinancialMutations - these are externally managed.
+        ActiveContractRentId, ActiveContractRentTenantId, CategoryName, ComplexName, ComplexId, BuildingId.
+        
+        Vacancy detection workflow:
+        1. Filter: OccupationPercentage lt 1 and not contains(DisplayName,'VERKOCHT')
+        2. Verify: ActiveContractRentId is null
+        3. External management check (TWO-TIER - supports partial external management):
+           - For each unique ComplexId/BuildingId, query FinancialMutations($filter=year(TransactionDate) eq 2025 and (ComplexId eq X or BuildingId eq Y),$top=1)
+           - If parent property HAS transactions: check EACH unit individually
+           - Query FinancialMutations($filter=year(TransactionDate) eq 2025 and RealEstateObjectId eq UnitId,$top=1)
+           - Units WITH own transactions = internally managed (INCLUDE in vacancy list)
+           - Units WITHOUT own transactions = externally managed (EXCLUDE from vacancy list)
+        4. Calculate financial impact: TheoreticalRentItems for remaining internally managed vacant units
+        5. Report separately: (1) Internally managed vacancies (actionable), (2) Externally managed count (info only)
+        
+        CRITICAL: Never assume all units in a complex are externally managed just because the parent has transactions.
+        CRITICAL: Always do unit-level transaction check to support partial external management.
       parameters:
         - $ref: '#/components/parameters/filter'
         - $ref: '#/components/parameters/select'

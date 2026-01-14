@@ -11,7 +11,7 @@
   "functions": [
     {
       "name": "getUnits",
-      "description": "Core property entity. For vacancy: $filter=OccupationPercentage lt 1 and not contains(DisplayName,'VERKOCHT'), verify ActiveContractRentId is null. Exclude units with FinancialMutations on parent (externally managed). Combine with getTheoreticalRentItems for €-impact. Key: UnitId, DisplayAddress, OwnerId, OccupationPercentage, ComplexId.",
+      "description": "Core property entity. For vacancy use TWO-TIER external management check: (1) Filter OccupationPercentage lt 1 and not contains(DisplayName,'VERKOCHT'), verify ActiveContractRentId null. (2) Query FinancialMutations for parent ComplexId/BuildingId. (3) If parent has transactions: check EACH unit's RealEstateObjectId in FinancialMutations. Units WITH own transactions = internal (include), WITHOUT = external (exclude). This supports partial external management. Combine with getTheoreticalRentItems for €-impact. Key: UnitId, RealEstateObjectId, DisplayAddress, OwnerId, OccupationPercentage, ComplexId, BuildingId.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
