@@ -34,7 +34,12 @@ This project implements a **Declarative Agent** for Microsoft 365 Copilot.
 Adaptive Cards in Copilot responses are defined in `appPackage/ai-plugin.json` under `static_template`.
 - **Source of Truth**: `appPackage/cards/*.json` contains the readable source.
 - **Manual Sync Required**: If you edit a JSON file in `cards/`, you **MUST** manually copy the `body` content into the corresponding `static_template` in `ai-plugin.json`.
-- *Caution*: `ai-plugin.json` embeds the card structure directly; it does not reference the file path at runtime.
+
+## 🐍 Python Code Interpreter
+The agent uses Code Interpreter for all calculations to prevent hallucination:
+- **Leegstandanalyse**: The system prompt includes a Python template for the "extern beheer check" logic
+- **KPI Berekeningen**: All sums, averages, and joins are executed in Python
+- **Anti-hallucination**: Never hardcode numbers - always compute from API data
 
 ## ⚠️ Manifest Constraints
 - **Instructions Limit**: `appPackage/declarativeAgent.json` → `instructions` max **8000 characters**.

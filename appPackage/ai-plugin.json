@@ -3,7 +3,7 @@
   "schema_version": "v2.3",
   "name_for_human": "Bloxs Real Estate",
   "description_for_human": "Query Bloxs real estate data: properties, tenants, contracts, maintenance and financials. Get portfolio insights, vacancy analysis, and KPIs.",
-  "description_for_model": "Bloxs real estate data analyst. Query OData API (read-only) for portfolio insights, cross-entity analysis, and KPI calculations.\n\n## Response Modes\n- **Quick**: Single endpoint, direct facts\n- **Deep**: Multi-endpoint, calculated KPIs\n- **Research**: Full cross-entity analysis, recommendations\n\n## Key Patterns\n- Portfolio: getCommercialOverview (no joins needed)\n- Vacancy: getUnits(OccupationPercentage lt 1) + getTheoreticalRentItems for €-impact\n- Arrears: getOpenPositionDebtors(Age gt 30) for risk\n- Contracts: getSalesContracts(IsEnded eq false, EndDate lt X)\n- Costs: getPurchaseInvoices → getPurchaseInvoiceLines if RealEstateObjectName empty\n- Mortgages: getLedgerAccounts(contains Name 'hypothe') → getFinancialMutations\n\n## Rules\n- Labels (Status/State) are tenant-specific: discover via lookup endpoints first\n- FinancialMutations: ALWAYS $filter + $top<=100\n- Use $select for efficiency, $top=50 default",
+  "description_for_model": "Bloxs real estate OData API (read-only). Use Code Interpreter for calculations.\n\n## Critical Rules\n- Use $top=30, $select for efficiency\n- FinancialMutations: ALWAYS $filter + $top<=50\n- Labels (Status/State) are tenant-specific: query lookup endpoints first\n- Vacancy check requires Python (extern beheer logic)",
   "namespace": "bloxs",
   "logo_url": "https://www.bloxs.com/wp-content/uploads/2024/06/logo.png",
   "legal_info_url": "https://www.bloxs.com/privacyverklaring/",
@@ -11,7 +11,7 @@
   "functions": [
     {
       "name": "getUnits",
-      "description": "Core property entity. For vacancy use TWO-TIER external management check: (1) Filter OccupationPercentage lt 1 and not contains(DisplayName,'VERKOCHT'), verify ActiveContractRentId null. (2) Query FinancialMutations for parent ComplexId/BuildingId. (3) If parent has transactions: check EACH unit's RealEstateObjectId in FinancialMutations. Units WITH own transactions = internal (include), WITHOUT = external (exclude). This supports partial external management. Combine with getTheoreticalRentItems for €-impact. Key: UnitId, RealEstateObjectId, DisplayAddress, OwnerId, OccupationPercentage, ComplexId, BuildingId.",
+      "description": "Rental units. Key: UnitId, RealEstateObjectId, DisplayAddress, OwnerId, OccupationPercentage, ComplexId, BuildingId, ActiveContractRentId. For vacancy: filter OccupationPercentage lt 1, exclude VERKOCHT, use Python for extern beheer check.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] },
         "response_semantics": {
@@ -598,11 +598,11 @@
   ],
   "capabilities": {
     "conversation_starters": [
-      { "text": "Show me an overview of our real estate portfolio" },
-      { "text": "Find all open maintenance tickets" },
-      { "text": "List all vacant rental units" },
-      { "text": "Show contracts expiring soon" },
-      { "text": "What are the WOZ values of our properties?" }
+      { "text": "Portfolio overview with occupancy and rent totals" },
+      { "text": "Analyze vacancy and calculate financial impact" },
+      { "text": "Which tenants have payment arrears >30 days?" },
+      { "text": "Contracts expiring in the next 6 months" },
+      { "text": "Open maintenance tickets by property" }
     ]
   }
 }
