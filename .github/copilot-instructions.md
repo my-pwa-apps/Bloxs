@@ -1,4 +1,4 @@
-## Microsoft 365 naming (reference)
+## Microsoft 365 Naming Reference
 Microsoft 365 Agents Toolkit was formerly called Teams Toolkit. Prefer the new names, but recognize older ones.
 
 | New name | Former name |
@@ -9,51 +9,67 @@ Microsoft 365 Agents Toolkit was formerly called Teams Toolkit. Prefer the new n
 | `teamsapp.yml` | (`m365agents.yml` in newer templates) |
 | `atk` CLI (`@microsoft/m365agentstoolkit-cli`) | `teamsapp` CLI |
 
-# Copilot instructions for this repo
+# Copilot Instructions for this Repo
 
-## Big picture
-- This repo packages a Microsoft 365 Copilot **declarative agent** + **API plugin** that queries Bloxs via **OData**.
-- The agent runs in Microsoft 365 Copilot (no app backend required). Auth is handled via an **API key in Plugin Vault**.
-- A Cloudflare Worker proxy exists to provide a short key + JWT management for the Bloxs OData API.
-- Aside from the Worker, this repo is mostly manifests/specs (the root `package.json` scripts are template-y; there are no tests configured).
+## 🏗️ Architecture & Boundaries
+This project implements a **Declarative Agent** for Microsoft 365 Copilot.
+- **Agent Logic**: Defined entirely in `appPackage/declarativeAgent.json` (instructions) and `ai-plugin.json` (capabilities).
+- **Backend**: There is **NO** custom bot service or "Agent SDK" backend. The agent runs on Microsoft's infrastructure.
+- **Proxy**: A Cloudflare Worker (`cloudflare-proxy/`) queries the Bloxs OData API. It handles authentication (short API key ↔ JWT) and safety guardrails.
+- **State**: The agent is stateless. The proxy caches JWT tokens but stores no conversation state.
 
-## Key files / where to change things
-- Agent prompt + starters: [appPackage/declarativeAgent.json](../appPackage/declarativeAgent.json)
-- Plugin manifest (functions list, model description): [appPackage/ai-plugin.json](../appPackage/ai-plugin.json)
-- OpenAPI spec (paths/entity sets, server URL): [appPackage/bloxs-openapi.yaml](../appPackage/bloxs-openapi.yaml)
-- Teams app manifest (icons, domains): [appPackage/manifest.json](../appPackage/manifest.json)
-- Cloudflare Worker proxy: [cloudflare-proxy/src/index.js](../cloudflare-proxy/src/index.js)
+### Note on "Microsoft Agents SDK"
+- This project does **NOT** use the [Microsoft Agents SDK](https://github.com/MicrosoftDocs/m365copilot-docs/blob/main/docs/m365-agents-sdk.md) (used for building Custom Engine agents).
+- It is a **Declarative Agent** which uses the M365 Copilot orchestrator.
+- **Do not** suggest adding `teams-ai` or `botbuilder` packages unless the user explicitly wants to re-platform to a custom engine architecture.
 
-## Manifest validation limits (important)
-- The declarative agent manifest enforces a hard limit: `appPackage/declarativeAgent.json` → `instructions` must be **<= 8000 characters**. Provisioning/publishing fails validation if this is exceeded.
-- Avoid duplicate JSON keys (e.g., two `"instructions"` properties). While JSON parsers may accept it, the “last one wins” behavior is confusing and makes size issues easy to miss.
-- Keep `instructions` focused on durable guardrails + a few safe query templates; move long reference material/workflows into repo docs instead of the manifest.
+## 🔑 Key Files
+- **System Prompt**: `appPackage/declarativeAgent.json` (`instructions` field).
+- **Tool Definitions**: `appPackage/ai-plugin.json` (maps OData endpoints to Copilot functions).
+- **API Spec**: `appPackage/bloxs-openapi.yaml` (Defines the interface for the LLM).
+- **Auth/Proxy Logic**: `cloudflare-proxy/src/index.js` (Critical for security & JWT handling).
+- **Card Templates**: `appPackage/cards/` (JSON source for Adaptive Cards).
 
-## Bloxs/OData conventions (project-specific)
-- **Tenant-specific labels:** Do not hardcode string-equals filters for Status/State/WorkflowState/CategoryName. First discover valid values via lookup endpoints (e.g. `ServiceTicketStates`) or by sampling recent records ($top=10–20, $select includes the field), then filter using the exact returned values.
-- **Performance:** `FinancialMutations` is large; always use restrictive `$filter`, keep `$top` small (<= 100), and prefer `$select`.
-- **Endpoint names are case-/tenant-sensitive:** verify entity-set names against `/odatafeed/$metadata/` when changing the OpenAPI spec.
-- The proxy has a helper endpoint `/odatafeed/$metadata-summary` for human debugging and field examples.
+## 🎨 Adaptive Cards Workflow
+Adaptive Cards in Copilot responses are defined in `appPackage/ai-plugin.json` under `static_template`.
+- **Source of Truth**: `appPackage/cards/*.json` contains the readable source.
+- **Manual Sync Required**: If you edit a JSON file in `cards/`, you **MUST** manually copy the `body` content into the corresponding `static_template` in `ai-plugin.json`.
+- *Caution*: `ai-plugin.json` embeds the card structure directly; it does not reference the file path at runtime.
 
-## Developer workflows
-- Provision/publish the agent via Microsoft 365 Agents Toolkit using [teamsapp.yml](../teamsapp.yml) / [teamsapp.local.yml](../teamsapp.local.yml). `deploy` is intentionally empty; packaging/registration happens in `provision`/`publish`.
-- Cloudflare proxy:
-	- Install: `cd cloudflare-proxy && npm install`
-	- Local: `npm run dev`
-	- Deploy: `npm run deploy`
-	- Secrets are set with `wrangler secret put BLOXS_API_KEY`, `BLOXS_API_SECRET`, `PROXY_API_KEY` (see [cloudflare-proxy/README.md](../cloudflare-proxy/README.md)).
+## ⚠️ Manifest Constraints
+- **Instructions Limit**: `appPackage/declarativeAgent.json` → `instructions` max **8000 characters**.
+- **JSON Structure**: Validation is strict. Avoid duplicate keys.
+- **Validation**: Run `Provision` (in Toolkit) to validate manifest changes against the server schema.
 
-## Safety / secrets
-- Never print or commit secrets. Treat `env/.env.*.user` and Worker secrets as sensitive.
-- API key files should never be committed to the repo.
+## 🏘️ Bloxs OData Conventions
+- **Tenant-Specific Labels**: Status/State/WorkflowState are configurable. **Pattern**: Agent should query lookup endpoints (e.g., `getServiceTicketStates`) first to discover valid values, then filter.
+- **Performance**: `FinancialMutations` is massive. ALWAYS use `$filter` and `$top=50-100`.
+- **Filtering**:
+    - **Lease History**: `getSalesContractLines` joined by `RealEstateObjectId` (efficient) vs scanning `SalesContracts` (slow).
+    - **External Management**: Check `FinancialMutations` at complex/building level to detect if a property is financially managed externally.
+- **Entities**:
+    - `Units`/`Buildings` have `OwnerId`.
+    - `Complexes` do NOT have `OwnerId` (must join down to units).
+    - `RealEstateObjects` is the base table; use specific derived tables (`Units`) for richer data.
+
+## 🛠️ Developer Workflow
+1. **Edit Manifests**: `appPackage/*.json`
+2. **Update Proxy**: `cd cloudflare-proxy && npm run dev` (local) or `npm run deploy`.
+3. **Provision**: Use Teams Toolkit "Provision" to register changes. "Deploy" is not used for declarative agents.
+4. **Debug**: Use "Preview in Copilot" (Microsoft 365 Agents Playground) to test prompts and tool calls.
+
+## 🔐 Secrets & Safety
+- **.env.user**: Contains local secrets. Never commit.
+- **Cloudflare Secrets**: Manage via `wrangler secret put`.
+- **Forbidden Data**: The proxy explicitly filters out specific sensitive owners (e.g., `FORBIDDEN_OWNER_NAMES` in `index.js`).
 
 ## M365 Copilot agent best practices (applied)
 These patterns are implemented in this agent based on Microsoft documentation:
 
 ### Instructions structure
-- **Use positive examples** showing *User input* → *Agent call* mappings (not negative "don't do X" lists)
-- **Keep instructions concise** (current: ~2400 chars, limit: 8000)
-- **Action-oriented** function descriptions in the plugin manifest
+- **Use positive examples** showing *User input* → *Agent call* mappings.
+- **Keep instructions concise** (current: ~2400 chars, limit: 8000).
+- **Action-oriented** function descriptions in the plugin manifest.
 
 ### Query patterns for Bloxs OData
 - **Vacancy detection**: `OccupationPercentage lt 1` finds candidates, but always cross-check `ActiveContractRentId` to avoid false positives. Exclude units with `[VERKOCHT]` in DisplayName (sold properties kept for history). Also exclude units where the parent complex/building has `FinancialMutations` - these are externally managed by another party.
