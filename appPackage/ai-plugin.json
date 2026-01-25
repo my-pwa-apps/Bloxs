@@ -96,7 +96,7 @@
     },
     {
       "name": "getCommercialOverview",
-      "description": "BEST for portfolio dashboard - no joins needed. Contains Address, OwnerName, TenantName, IsOccupied, BareRent_Yearly_TotalAmountExcl, ContractStartDate, ContractEndDate. Calculate: total rent, occupancy rate, contract expiry risk.",
+      "description": "BEST for portfolio dashboard - no joins needed. Contains Address, OwnerName, TenantName, IsOccupied, BareRent_Yearly_TotalAmountExcl (EUR), ContractStartDate, ContractEndDate. Calculate: total rent, occupancy rate, contract expiry risk.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] },
         "response_semantics": {
