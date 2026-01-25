@@ -13,7 +13,71 @@
       "name": "getUnits",
       "description": "Core property entity. For vacancy use TWO-TIER external management check: (1) Filter OccupationPercentage lt 1 and not contains(DisplayName,'VERKOCHT'), verify ActiveContractRentId null. (2) Query FinancialMutations for parent ComplexId/BuildingId. (3) If parent has transactions: check EACH unit's RealEstateObjectId in FinancialMutations. Units WITH own transactions = internal (include), WITHOUT = external (exclude). This supports partial external management. Combine with getTheoreticalRentItems for €-impact. Key: UnitId, RealEstateObjectId, DisplayAddress, OwnerId, OccupationPercentage, ComplexId, BuildingId.",
       "capabilities": {
-        "security_info": { "data_handling": ["GetPrivateData"] }
+        "security_info": { "data_handling": ["GetPrivateData"] },
+        "response_semantics": {
+          "data_path": "$.value",
+          "properties": {
+            "title": "$.DisplayName",
+            "subtitle": "$.DisplayAddress"
+          },
+          "static_template": {
+            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+            "type": "AdaptiveCard",
+            "version": "1.5",
+            "body": [
+              {
+                "type": "Container",
+                "items": [
+                  {
+                    "type": "ColumnSet",
+                    "columns": [
+                      {
+                        "type": "Column",
+                        "width": "stretch",
+                        "items": [
+                          {
+                            "type": "TextBlock",
+                            "text": "${if(DisplayName, DisplayName, Reference)}",
+                            "weight": "Bolder",
+                            "size": "Medium",
+                            "wrap": true
+                          },
+                          {
+                            "type": "TextBlock",
+                            "text": "${if(DisplayAddress, DisplayAddress, 'Adres onbekend')}",
+                            "spacing": "None",
+                            "isSubtle": true,
+                            "wrap": true
+                          }
+                        ]
+                      },
+                      {
+                        "type": "Column",
+                        "width": "auto",
+                        "items": [
+                          {
+                            "type": "TextBlock",
+                            "text": "${if(OccupationPercentage == 1, '🟢', if(OccupationPercentage > 0, '🟡', '🔴'))}",
+                            "size": "Large"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "FactSet",
+                    "facts": [
+                      { "title": "Categorie", "value": "${if(CategoryName, CategoryName, 'n.v.t.')}" },
+                      { "title": "Eigenaar", "value": "${if(Owner, Owner, 'n.v.t.')}" },
+                      { "title": "Bezetting", "value": "${if(OccupationPercentage, formatNumber(mul(OccupationPercentage, 100), 0) + '%', 'n.v.t.')}" },
+                      { "title": "Oppervlakte", "value": "${if(RentableFloorArea, formatNumber(RentableFloorArea, 0) + ' m²', 'n.v.t.')}" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
       }
     },
     {
@@ -34,7 +98,71 @@
       "name": "getCommercialOverview",
       "description": "BEST for portfolio dashboard - no joins needed. Contains Address, OwnerName, TenantName, IsOccupied, BareRent_Yearly_TotalAmountExcl, ContractStartDate, ContractEndDate. Calculate: total rent, occupancy rate, contract expiry risk.",
       "capabilities": {
-        "security_info": { "data_handling": ["GetPrivateData"] }
+        "security_info": { "data_handling": ["GetPrivateData"] },
+        "response_semantics": {
+          "data_path": "$.value",
+          "properties": {
+            "title": "$.Address",
+            "subtitle": "$.TenantName"
+          },
+          "static_template": {
+            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+            "type": "AdaptiveCard",
+            "version": "1.5",
+            "body": [
+              {
+                "type": "Container",
+                "items": [
+                  {
+                    "type": "ColumnSet",
+                    "columns": [
+                      {
+                        "type": "Column",
+                        "width": "stretch",
+                        "items": [
+                          {
+                            "type": "TextBlock",
+                            "text": "${if(Address, Address, 'Adres onbekend')}",
+                            "weight": "Bolder",
+                            "size": "Medium",
+                            "wrap": true
+                          },
+                          {
+                            "type": "TextBlock",
+                            "text": "${if(TenantName, TenantName, 'Leegstand')}",
+                            "spacing": "None",
+                            "isSubtle": true,
+                            "wrap": true
+                          }
+                        ]
+                      },
+                      {
+                        "type": "Column",
+                        "width": "auto",
+                        "items": [
+                          {
+                            "type": "TextBlock",
+                            "text": "${if(IsOccupied, '🏠', '🏚️')}",
+                            "size": "Large"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "FactSet",
+                    "facts": [
+                      { "title": "Eigenaar", "value": "${if(OwnerName, OwnerName, 'n.v.t.')}" },
+                      { "title": "Huurder", "value": "${if(TenantName, TenantName, 'Leegstand')}" },
+                      { "title": "Jaarhuur", "value": "${if(BareRent_Yearly_TotalAmountExcl, '€ ' + formatNumber(BareRent_Yearly_TotalAmountExcl, 2), 'n.v.t.')}" },
+                      { "title": "Status", "value": "${if(IsOccupied, 'Verhuurd', 'Leegstand')}" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
       }
     },
     {
@@ -90,7 +218,71 @@
       "name": "getSalesContracts",
       "description": "CONTRACT MANAGEMENT: Rent contracts. Filter IsEnded eq false for active. For expiry risk: EndDate lt [date]. Key: SalesContractId, Reference, RelationName, OwnerName, StartDate, EndDate, IsEnded. Combine with getSalesContractLineItems for rent amounts per property.",
       "capabilities": {
-        "security_info": { "data_handling": ["GetPrivateData"] }
+        "security_info": { "data_handling": ["GetPrivateData"] },
+        "response_semantics": {
+          "data_path": "$.value",
+          "properties": {
+            "title": "$.RelationName",
+            "subtitle": "$.Reference"
+          },
+          "static_template": {
+            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+            "type": "AdaptiveCard",
+            "version": "1.5",
+            "body": [
+              {
+                "type": "Container",
+                "items": [
+                  {
+                    "type": "ColumnSet",
+                    "columns": [
+                      {
+                        "type": "Column",
+                        "width": "stretch",
+                        "items": [
+                          {
+                            "type": "TextBlock",
+                            "text": "${if(RelationName, RelationName, 'Onbekende huurder')}",
+                            "weight": "Bolder",
+                            "size": "Medium",
+                            "wrap": true
+                          },
+                          {
+                            "type": "TextBlock",
+                            "text": "Contract: ${if(Reference, Reference, SalesContractId)}",
+                            "spacing": "None",
+                            "isSubtle": true,
+                            "wrap": true
+                          }
+                        ]
+                      },
+                      {
+                        "type": "Column",
+                        "width": "auto",
+                        "items": [
+                          {
+                            "type": "TextBlock",
+                            "text": "${if(IsEnded, '⏹️', '▶️')}",
+                            "size": "Large"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "FactSet",
+                    "facts": [
+                      { "title": "Eigenaar", "value": "${if(OwnerName, OwnerName, 'n.v.t.')}" },
+                      { "title": "Startdatum", "value": "${if(StartDate, formatDateTime(StartDate, 'dd-MM-yyyy'), 'n.v.t.')}" },
+                      { "title": "Einddatum", "value": "${if(EndDate, formatDateTime(EndDate, 'dd-MM-yyyy'), 'Onbepaald')}" },
+                      { "title": "Status", "value": "${if(IsEnded, 'Beëindigd', 'Actief')}" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
       }
     },
     {
@@ -118,7 +310,72 @@
       "name": "getServiceTickets",
       "description": "MAINTENANCE ANALYSIS: Service tickets - NO JOINS needed. Contains RealEstateObjectName, TenantName, SupplierName, ServiceTicketStateName. For open tickets: first getServiceTicketStates to discover state names. Combine with getPurchaseInvoices for cost analysis.",
       "capabilities": {
-        "security_info": { "data_handling": ["GetPrivateData"] }
+        "security_info": { "data_handling": ["GetPrivateData"] },
+        "response_semantics": {
+          "data_path": "$.value",
+          "properties": {
+            "title": "$.Reference",
+            "subtitle": "$.RealEstateObjectName"
+          },
+          "static_template": {
+            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+            "type": "AdaptiveCard",
+            "version": "1.5",
+            "body": [
+              {
+                "type": "Container",
+                "items": [
+                  {
+                    "type": "ColumnSet",
+                    "columns": [
+                      {
+                        "type": "Column",
+                        "width": "stretch",
+                        "items": [
+                          {
+                            "type": "TextBlock",
+                            "text": "${if(Reference, Reference, 'Ticket #' + ServiceTicketId)}",
+                            "weight": "Bolder",
+                            "size": "Medium",
+                            "wrap": true
+                          },
+                          {
+                            "type": "TextBlock",
+                            "text": "${if(RealEstateObjectName, RealEstateObjectName, 'Locatie onbekend')}",
+                            "spacing": "None",
+                            "isSubtle": true,
+                            "wrap": true
+                          }
+                        ]
+                      },
+                      {
+                        "type": "Column",
+                        "width": "auto",
+                        "items": [
+                          {
+                            "type": "TextBlock",
+                            "text": "${if(ClosingDate, '✅', '🔧')}",
+                            "size": "Large"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "FactSet",
+                    "facts": [
+                      { "title": "Status", "value": "${if(ServiceTicketStateName, ServiceTicketStateName, 'Onbekend')}" },
+                      { "title": "Huurder", "value": "${if(TenantName, TenantName, 'n.v.t.')}" },
+                      { "title": "Leverancier", "value": "${if(SupplierName, SupplierName, 'n.v.t.')}" },
+                      { "title": "Gemeld op", "value": "${if(ReportingDate, formatDateTime(ReportingDate, 'dd-MM-yyyy'), 'n.v.t.')}" },
+                      { "title": "Afgesloten op", "value": "${if(ClosingDate, formatDateTime(ClosingDate, 'dd-MM-yyyy'), 'Open')}" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
       }
     },
     {
@@ -188,7 +445,71 @@
       "name": "getOpenPositionDebtors",
       "description": "RISK ANALYSIS: Outstanding receivables. Filter Age gt 30 for overdue payments. Key: RelationName, OutstandingAmount, Age, DueDate, OwnerName. Calculate: total arrears, DSO, tenant risk score. Combine with getSalesContracts for tenant context.",
       "capabilities": {
-        "security_info": { "data_handling": ["GetPrivateData"] }
+        "security_info": { "data_handling": ["GetPrivateData"] },
+        "response_semantics": {
+          "data_path": "$.value",
+          "properties": {
+            "title": "$.RelationName",
+            "subtitle": "$.OutstandingAmount"
+          },
+          "static_template": {
+            "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+            "type": "AdaptiveCard",
+            "version": "1.5",
+            "body": [
+              {
+                "type": "Container",
+                "items": [
+                  {
+                    "type": "ColumnSet",
+                    "columns": [
+                      {
+                        "type": "Column",
+                        "width": "stretch",
+                        "items": [
+                          {
+                            "type": "TextBlock",
+                            "text": "${if(RelationName, RelationName, 'Onbekende relatie')}",
+                            "weight": "Bolder",
+                            "size": "Medium",
+                            "wrap": true
+                          },
+                          {
+                            "type": "TextBlock",
+                            "text": "Factuur: ${if(Reference, Reference, SalesInvoiceId)}",
+                            "spacing": "None",
+                            "isSubtle": true,
+                            "wrap": true
+                          }
+                        ]
+                      },
+                      {
+                        "type": "Column",
+                        "width": "auto",
+                        "items": [
+                          {
+                            "type": "TextBlock",
+                            "text": "${if(Age > 90, '🔴', if(Age > 60, '🟠', if(Age > 30, '🟡', '🟢')))}",
+                            "size": "Large"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "FactSet",
+                    "facts": [
+                      { "title": "Openstaand", "value": "€ ${if(OutstandingAmount, formatNumber(OutstandingAmount, 2), '0,00')}" },
+                      { "title": "Leeftijd", "value": "${if(Age, Age + ' dagen', 'n.v.t.')}" },
+                      { "title": "Vervaldatum", "value": "${if(DueDate, formatDateTime(DueDate, 'dd-MM-yyyy'), 'n.v.t.')}" },
+                      { "title": "Eigenaar", "value": "${if(OwnerName, OwnerName, 'n.v.t.')}" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
       }
     },
     {
