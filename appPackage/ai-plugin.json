@@ -11,7 +11,7 @@
   "functions": [
     {
       "name": "getUnits",
-      "description": "Rental units. Key: UnitId, RealEstateObjectId, DisplayAddress, OwnerId, OccupationPercentage, ComplexId, BuildingId, ActiveContractRentId. For vacancy: filter OccupationPercentage lt 1, exclude VERKOCHT, use Python for extern beheer check.",
+      "description": "Rental units. Key: UnitId, RealEstateObjectId, DisplayAddress, OwnerId, OccupationPercentage, ComplexId, SectionId, ActiveContractRentId, ManagementState, EnergyLabel. For vacancy: filter OccupationPercentage lt 1, exclude VERKOCHT, use Python for extern beheer check.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] },
         "response_semantics": {
@@ -294,7 +294,7 @@
     },
     {
       "name": "getSalesContractLineItems",
-      "description": "Rent line items with RealEstateObjectName, Amount, StartDate, EndDate. Good for rent-per-property analysis.",
+      "description": "LOOKUP TABLE: Contract line item type definitions (bare rent, service costs, etc). NOT actual amounts! Key: SalesContractLineItemId, Name, ContractType, LedgerAccountId, IsBareRent, IsIndexable, ItemType. For actual rent amounts per property, use getSalesContractLines instead.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
@@ -380,7 +380,7 @@
     },
     {
       "name": "getServiceTicketStates",
-      "description": "Valid ticket states (tenant-specific). Query first to discover state names before filtering ServiceTickets.",
+      "description": "Valid ticket states (tenant-specific). Key: ServiceTicketStateId, Name, SystemState (Active/OnHold/SignedOff/Done), IsArchived. Query first to discover state names before filtering ServiceTickets.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
@@ -401,7 +401,7 @@
     },
     {
       "name": "getFinancialMutations",
-      "description": "FINANCIAL DEEP-DIVE: Ledger transactions. **ALWAYS** $filter + $top<=100. For mortgages: first getLedgerAccounts(contains Name 'hypothe'), then filter by LedgerAccountCode. Key: TransactionDate, LedgerAccountCode, Amount, RealEstateObjectName, RelationName. Calculate: mortgage payments, interest costs.",
+      "description": "FINANCIAL DEEP-DIVE: Ledger transactions. **ALWAYS** $filter + $top<=100. Key: TransactionDate, LedgerAccountCode, LedgerAccountName, Amount, Debit, Credit, RealEstateObjectName, RelationName, OwnerName, InvoiceReference, FinancialYear, JournalType. For mortgages: first getLedgerAccounts(contains Name 'hypothe'), then filter by LedgerAccountCode.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
@@ -429,7 +429,7 @@
     },
     {
       "name": "getPurchaseInvoices",
-      "description": "COST ANALYSIS: Purchase invoices from suppliers. Filter FinancialYear eq 2025. Key: PurchaseInvoiceId, Reference, InvoiceDate, TotalValueIncluding, RelationName, RealEstateObjectName. If RealEstateObjectName empty: use getPurchaseInvoiceLines. Calculate: costs per property, cost/m².",
+      "description": "COST ANALYSIS: Purchase invoices from suppliers. Filter FinancialYear eq 2026. Key: PurchaseInvoiceId, Reference, InvoiceDate, TotalValueIncluding, RelationName, RealEstateObjectName. If RealEstateObjectName empty: use getPurchaseInvoiceLines. Calculate: costs per property, cost/m².",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
@@ -528,7 +528,7 @@
     },
     {
       "name": "getPropertyValuationValues",
-      "description": "VALUATION DATA: WOZ values per property. Filter ValuationYear eq 2025/2026. Key: RealEstateObjectId, RealEstateObjectName, Value, ValuationYear. Combine with getUnits(OwnerId) for owner-specific WOZ. Calculate: total portfolio value, LTV ratio.",
+      "description": "VALUATION DATA: WOZ values per property. Filter ValuationYear eq 2026. Key: RealEstateObjectId, RealEstateObjectName, Value, ValuationYear. Combine with getUnits(OwnerId) for owner-specific WOZ. Calculate: total portfolio value, LTV ratio.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
@@ -542,7 +542,7 @@
     },
     {
       "name": "getInstallations",
-      "description": "Equipment with NextMaintenanceOn for maintenance planning.",
+      "description": "Equipment with NextMaintenanceOn, LastMaintainedOn, ExpectedCosts for maintenance planning. Key: InstallationId, Reference, Description, RealEstateObjectId, InstallationTypeId, SupplierId, BuildYear.",
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
@@ -581,6 +581,90 @@
       "capabilities": {
         "security_info": { "data_handling": ["GetPrivateData"] }
       }
+    },
+    {
+      "name": "getControlList",
+      "description": "COMPREHENSIVE PRE-JOINED VIEW - owner+property+unit+tenant+contract in one call. Key: OwnerName, RealEstateObjectName, UnitName, IsOccupied, BVO, VVO, TenantName, SalesContractReference, SalesContractStartDate, SalesContractEndDate, SalesContractNoticePeriod, SalesContractNoticeDate, SalesContractIndexationName, SalesContractDepositAmount, RealEstateObjectCadastralNumber, RealEstateObjectMandateAmount. PREFERRED over CommercialOverview when you need contract notice periods, cadastral numbers, or mandate amounts.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
+    },
+    {
+      "name": "getCommercialRentSalesContracts",
+      "description": "Commercial rent contracts with BREAK OPTION date. Key: BreakOption, SalesContractId, Reference, RelationName, OwnerName, StartDate, EndDate, DepositAmount. Use BreakOption for commercial lease risk analysis.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
+    },
+    {
+      "name": "getPurchaseOrders",
+      "description": "Purchase orders to suppliers with approval workflow. Key: PurchaseOrderId, Reference, Subject, TotalAmountExcl, WorkflowState, FinalizationState, FirstRealEstateObjectName, CurrentAssignedApproverDisplayName.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
+    },
+    {
+      "name": "getPurchaseOrderLines",
+      "description": "Purchase order lines with property allocation. Key: PurchaseOrderLineId, PurchaseOrderId, Description, RealEstateObjectId, AmountExcl.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
+    },
+    {
+      "name": "getPurchaseContracts",
+      "description": "Supplier/purchase contracts (service agreements, hire). Key: PurchaseContractId, Reference, Type (Supplier/PrivateHire/CommercialHire), RelationName, OwnerName, StartDate, EndDate, IsEnded, NoticePeriod.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
+    },
+    {
+      "name": "getPurchaseContractLines",
+      "description": "Purchase contract line items with amounts. Key: PurchaseContractLineId, PurchaseContractId, RealEstateObjectId, AmountExcl, AmountIncl, StartDate, EndDate.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
+    },
+    {
+      "name": "getBudgets",
+      "description": "Operating and investment budgets per owner/year. Key: BudgetId, BudgetType, OwnerId, OwnerName, FinancialYear. Combine with getBudgetLedgerAccounts for monthly budget amounts.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
+    },
+    {
+      "name": "getBudgetLedgerAccounts",
+      "description": "BUDGET VS ACTUAL: Monthly budget amounts per ledger account. Key: BudgetId, LedgerAccountId, LedgerAccountCode, JanuaryAmount..DecemberAmount, TotalAmount. Compare with FinancialMutations for variance analysis.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
+    },
+    {
+      "name": "getFinancingContractInstalments",
+      "description": "Mortgage/loan instalment schedule with interest/redemption breakdown. Key: FinancingContractId, InstalmentIndex, StartDate, EndDate, InterestPercentage, Payment, Interest, Redemption, InstalmentStartAmount, InstalmentEndAmount.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
+    },
+    {
+      "name": "getPaymentRemindersRelation",
+      "description": "COLLECTION TRACKING: Payment reminder status per tenant. Key: RelationName, OwnerName, TotalOutstandingAmount, PaymentReminderPhase (None/FirstReminderSent/SecondReminderSent/ThirdReminderSent/SentToDebtCollectingAgency), LastActionOn, ExcludedUntil.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
+    },
+    {
+      "name": "getIndexationMethods",
+      "description": "Indexation methods for rent adjustments. Key: IndexationMethodId, Name, Type (MonthlyIndex/YearlyIndex/FixedRate/FixedValue), IndexationSeriesName, MinimumIndexRate, MaximumIndexRate, FixedIndexRate.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
+    },
+    {
+      "name": "getIndexationSeriesValues",
+      "description": "Indexation series values (CPI data) per year/month. Key: IndexationSeriesId, IndexationSeriesName, Value, CalendarYear, CalendarMonth.",
+      "capabilities": {
+        "security_info": { "data_handling": ["GetPrivateData"] }
+      }
     }
   ],
   "runtimes": [
@@ -591,18 +675,19 @@
         "reference_id": "${{BLOXS_API_KEY_REFERENCE}}"
       },
       "spec": {
-        "url": "bloxs-openapi.yaml"
+        "url": "bloxs-openapi.yaml",
+        "progress_style": "ShowUsageWithInput"
       },
       "run_for_functions": ["*"]
     }
   ],
   "capabilities": {
     "conversation_starters": [
-      { "text": "Portfolio overview with occupancy and rent totals" },
-      { "text": "Analyze vacancy and calculate financial impact" },
-      { "text": "Which tenants have payment arrears >30 days?" },
-      { "text": "Contracts expiring in the next 6 months" },
-      { "text": "Open maintenance tickets by property" }
+      { "text": "Geef een overzicht van ons vastgoedportfolio met bezettingsgraad en totale huurinkomsten" },
+      { "text": "Analyseer onze leegstand en bereken de financiële impact" },
+      { "text": "Welke huurders hebben betalingsachterstanden >30 dagen?" },
+      { "text": "Toon contracten die de komende 6 maanden aflopen" },
+      { "text": "Wat zijn de openstaande onderhoudstickets per pand?" }
     ]
   }
 }

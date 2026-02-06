@@ -30,15 +30,17 @@ paths:
       description: |
         Retrieve rental units (apartments, offices, retail spaces).
         Key fields: UnitId, RealEstateObjectId, DisplayName, DisplayAddress, OwnerId, Owner, OccupationPercentage,
-        ActiveContractRentId, ActiveContractRentTenantId, CategoryName, ComplexName, ComplexId, BuildingId.
+        ActiveContractRentId, ActiveContractRentTenantId, CategoryName, ComplexName, ComplexId,
+        SectionId, SectionName, RawFloorArea, RentableFloorArea, EnergyLabel, ManagementState,
+        TechnicalManagement, FinancialManagement.
         
         Vacancy detection workflow:
         1. Filter: OccupationPercentage lt 1 and not contains(DisplayName,'VERKOCHT')
         2. Verify: ActiveContractRentId is null
         3. External management check (TWO-TIER - supports partial external management):
-           - For each unique ComplexId/BuildingId, query FinancialMutations($filter=year(TransactionDate) eq 2025 and (ComplexId eq X or BuildingId eq Y),$top=1)
-           - If parent property HAS transactions: check EACH unit individually
-           - Query FinancialMutations($filter=year(TransactionDate) eq 2025 and RealEstateObjectId eq UnitId,$top=1)
+           - For each unique ComplexId, query FinancialMutations($filter=year(TransactionDate) eq 2026 and RealEstateObjectId eq ComplexRealEstateObjectId,$top=1)
+           - If parent complex HAS transactions: check EACH unit individually
+           - Query FinancialMutations($filter=year(TransactionDate) eq 2026 and RealEstateObjectId eq UnitRealEstateObjectId,$top=1)
            - Units WITH own transactions = internally managed (INCLUDE in vacancy list)
            - Units WITHOUT own transactions = externally managed (EXCLUDE from vacancy list)
         4. Calculate financial impact: TheoreticalRentItems for remaining internally managed vacant units
@@ -202,7 +204,7 @@ paths:
       summary: Get addresses
       description: |
         Address records (street/city/postal code). Useful for enriching Relations/Persons/Owners and geodata.
-        Key fields: AddressId, Street, HouseNumber, PostalCode, City, Country, Latitude, Longitude, DisplayName.
+        Key fields: AddressId, Street, HouseNumber, PostalCode, City, CountryId, Latitude, Longitude, DisplayName, StreetAndHouseNumber.
       parameters:
         - $ref: '#/components/parameters/filter'
         - $ref: '#/components/parameters/select'
@@ -334,10 +336,12 @@ paths:
   /SalesContractLineItems:
     get:
       operationId: getSalesContractLineItems
-      summary: Get contract rent line items
+      summary: Get contract line item definitions (lookup table)
       description: |
-        Detailed rent line items with amounts per property.
-        Key fields: SalesContractLineItemId, SalesContractId, RealEstateObjectId, RealEstateObjectName, Amount, StartDate, EndDate.
+        LOOKUP TABLE for contract line item types (not actual amounts!).
+        Defines what types of charges exist per contract type (bare rent, service costs, etc.).
+        Key fields: SalesContractLineItemId, Name, ContractType, LedgerAccountId, LedgerAccountCode, IsIndexable, IsBareRent, ItemType.
+        NOTE: For actual rent amounts per property, use getSalesContractLines instead.
       parameters:
         - $ref: '#/components/parameters/filter'
         - $ref: '#/components/parameters/select'
@@ -414,7 +418,8 @@ paths:
       summary: Get valid ticket states
       description: |
         Discover valid ticket state names (tenant-specific).
-        Key fields: ServiceTicketStateId, Name, SortOrder.
+        Key fields: ServiceTicketStateId, Name, SystemState (enum: Active/OnHold/SignedOff/Done), IsArchived.
+        SystemState lets you programmatically determine open vs closed tickets.
         Query this first before filtering ServiceTickets by state.
       parameters:
         - $ref: '#/components/parameters/filter'
@@ -482,7 +487,10 @@ paths:
       summary: Get financial transactions
       description: |
         General ledger transactions - THE SOURCE for mortgage/loan data.
-        Key fields: JournalPostId, TransactionDate, LedgerAccountCode, Amount, RealEstateObjectName, RelationName, FinancialYear.
+        Key fields: JournalPostTransactionId, JournalPostId, TransactionDate, LedgerAccountId, LedgerAccountCode,
+        LedgerAccountName, Amount, Debit, Credit, Description, RealEstateObjectId, RealEstateObjectName,
+        RelationId, RelationName, OwnerName, OwnerReference, FinancialYear, FinancialPeriod,
+        JournalCode, JournalName, JournalType, InvoiceReference.
         ALWAYS use restrictive $filter and $top <= 100 (large table).
       parameters:
         - $ref: '#/components/parameters/filter'
@@ -685,7 +693,7 @@ paths:
       description: |
         WOZ values and property valuations.
         Key fields: PropertyValuationValueId, RealEstateObjectId, RealEstateObjectName, ValuationYear, Value, ValuationTypeName.
-        Filter by ValuationYear eq 2025.
+        Filter by ValuationYear eq 2026.
       parameters:
         - $ref: '#/components/parameters/filter'
         - $ref: '#/components/parameters/select'
@@ -730,7 +738,9 @@ paths:
       summary: Get installations
       description: |
         Equipment and installations (CV, lift, etc) with maintenance schedules.
-        Key fields: InstallationId, RealEstateObjectId, Name, InstallationTypeName, NextMaintenanceOn.
+        Key fields: InstallationId, Reference, Description, RealEstateObjectId,
+        InstallationTypeId, SupplierId, BuildYear, NextMaintenanceOn, LastMaintainedOn,
+        MaintenanceIntervalNumber, MaintenanceIntervalPeriod, ExpectedCosts, ArchiveDate, Remarks.
       parameters:
         - $ref: '#/components/parameters/filter'
         - $ref: '#/components/parameters/select'
@@ -839,6 +849,309 @@ paths:
               schema:
                 $ref: '#/components/schemas/ODataResponse'
 
+  # ==================== PURCHASE ORDERS ====================
+  /PurchaseOrders:
+    get:
+      operationId: getPurchaseOrders
+      summary: Get purchase orders
+      description: |
+        Purchase orders to suppliers. Tracks approval workflow and finalization.
+        Key fields: PurchaseOrderId, Reference, OwnerId, RelationId, Subject, WorkflowState,
+        TotalAmountExcl, FinalizationState (Open/Completed/Closed), FirstRealEstateObjectName,
+        CurrentAssignedApproverDisplayName, ProposalReference, ProposalTotalAmountExcl.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  /PurchaseOrderLines:
+    get:
+      operationId: getPurchaseOrderLines
+      summary: Get purchase order lines
+      description: |
+        Purchase order line items with property allocation.
+        Key fields: PurchaseOrderLineId, PurchaseOrderId, Description, LedgerAccountId,
+        RealEstateObjectId, AmountExcl.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  # ==================== PURCHASE CONTRACTS ====================
+  /PurchaseContracts:
+    get:
+      operationId: getPurchaseContracts
+      summary: Get supplier/purchase contracts
+      description: |
+        Supplier and purchase contracts (service agreements, private/commercial hire).
+        Key fields: PurchaseContractId, Reference, Name, Type (Supplier/PrivateHire/CommercialHire),
+        OwnerId, OwnerName, RelationId, RelationName, StartDate, EndDate, IsEnded,
+        PaymentMethod, InvoiceInterval, NoticePeriod, NoticeDate.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  /PurchaseContractLines:
+    get:
+      operationId: getPurchaseContractLines
+      summary: Get purchase contract lines
+      description: |
+        Purchase contract line items with property allocation and amounts.
+        Key fields: PurchaseContractLineId, PurchaseContractId, RealEstateObjectId,
+        Description, AmountExcl, AmountIncl, StartDate, EndDate.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  # ==================== COMMERCIAL RENT CONTRACTS ====================
+  /CommercialRentSalesContracts:
+    get:
+      operationId: getCommercialRentSalesContracts
+      summary: Get commercial rent contracts (with BreakOption)
+      description: |
+        Commercial rent contracts - superset of SalesContracts with BreakOption date.
+        Key fields: CommercialRentSalesContractId, SalesContractId, BreakOption (break date!),
+        Reference, RelationName, OwnerName, StartDate, EndDate, IsEnded, DepositAmount.
+        Use BreakOption for commercial lease risk analysis.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  # ==================== BUDGETS ====================
+  /Budgets:
+    get:
+      operationId: getBudgets
+      summary: Get budgets
+      description: |
+        Operating and investment budgets per owner per year.
+        Key fields: BudgetId, BudgetType (OperatingBudget/InvestmentBudget), OwnerId, OwnerName,
+        Name, FinancialYear.
+        Combine with BudgetLedgerAccounts for monthly amounts per ledger account.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  /BudgetLedgerAccounts:
+    get:
+      operationId: getBudgetLedgerAccounts
+      summary: Get budget amounts per ledger account
+      description: |
+        Monthly budget amounts per ledger account. Perfect for budget vs actual analysis.
+        Key fields: BudgetLedgerAccountId, BudgetId, LedgerAccountId, LedgerAccountCode,
+        JanuaryAmount..DecemberAmount, TotalAmount.
+        Workflow: getBudgets → BudgetId → getBudgetLedgerAccounts → compare with FinancialMutations.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  # ==================== FINANCING DETAILS ====================
+  /FinancingContractInstalments:
+    get:
+      operationId: getFinancingContractInstalments
+      summary: Get loan/mortgage instalments
+      description: |
+        Instalment schedule for financing contracts (mortgage/loan repayments).
+        Key fields: FinancingContractInstalmentId, FinancingContractId, InstalmentIndex,
+        StartDate, EndDate, InterestPercentage, InstalmentStartAmount, Payment, Interest,
+        Redemption, InstalmentEndAmount, IsEndSumLine.
+        Use for detailed mortgage analysis: interest vs redemption breakdown.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  # ==================== PAYMENT REMINDERS ====================
+  /PaymentRemindersRelation:
+    get:
+      operationId: getPaymentRemindersRelation
+      summary: Get payment reminder status per tenant
+      description: |
+        Payment reminder tracking per relation (tenant). Shows reminder phase and outstanding amounts.
+        Key fields: PaymentReminderRelationId, OwnerId, OwnerName, RelationId, RelationName,
+        TotalOutstandingAmount, LastActionOn, PaymentReminderPhase (None/FirstReminderSent/.../SentToDebtCollectingAgency),
+        ExcludedUntil.
+        Use for tenant risk assessment and collection follow-up.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  # ==================== CONTROL LIST ====================
+  /ControlList:
+    get:
+      operationId: getControlList
+      summary: Get comprehensive control list (pre-joined)
+      description: |
+        PRE-JOINED comprehensive property/tenant/contract view - most complete single-query overview.
+        Contains owner, property, unit, tenant, and contract details in one call.
+        Key fields: Id, OwnerReference, OwnerName, OwnerAddress,
+        RealEstateObjectReference, RealEstateObjectName, RealEstateObjectCategoryName,
+        RealEstateObjectMandateAmount, RealEstateObjectCadastralNumber,
+        UnitReference, UnitName, IsOccupied, BVO (bruto), VVO (verhuurbaar),
+        TenantReference, TenantName, TenantIBAN, TenantAddress,
+        SalesContractReference, SalesContractType, SalesContractStartDate, SalesContractEndDate,
+        SalesContractNoticePeriod, SalesContractNoticeDate, SalesContractAutomaticExtension,
+        SalesContractIndexationName, SalesContractNextIndexationDate,
+        SalesContractPaymentMethod, SalesContractDepositAmount.
+        PREFERRED over CommercialOverview when you need contract notice periods, cadastral numbers,
+        mandate amounts, or detailed invoicing settings.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  # ==================== INDEXATION ====================
+  /IndexationMethods:
+    get:
+      operationId: getIndexationMethods
+      summary: Get indexation methods
+      description: |
+        Indexation methods for rent adjustments.
+        Key fields: IndexationMethodId, Name, Type (MonthlyIndex/YearlyIndex/FixedRate/FixedValue),
+        IndexationSeriesName, MinimumIndexRate, MaximumIndexRate, FixedIndexRate, IncrementRate.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
+  /IndexationSeriesValues:
+    get:
+      operationId: getIndexationSeriesValues
+      summary: Get indexation series values (CPI data)
+      description: |
+        Indexation values per year/month for rent indexation series (e.g., CPI).
+        Key fields: IndexationSeriesValueId, IndexationSeriesId, IndexationSeriesName,
+        Value, CalendarYear, CalendarMonth.
+      parameters:
+        - $ref: '#/components/parameters/filter'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/orderby'
+        - $ref: '#/components/parameters/top'
+        - $ref: '#/components/parameters/skip'
+        - $ref: '#/components/parameters/count'
+      responses:
+        '200':
+          description: OData response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ODataResponse'
+
   # ==================== OWNER SETTLEMENTS ====================
   /OwnerSettlements:
     get:
@@ -878,7 +1191,7 @@ components:
         - OccupationPercentage lt 1 (vacant units)
         - IsEnded eq false (active contracts)
         - contains(DisplayName,'straat')
-        - FinancialYear eq 2025
+        - FinancialYear eq 2026
       schema:
         type: string
     select:
